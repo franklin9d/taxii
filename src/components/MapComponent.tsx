@@ -13,6 +13,13 @@ const defaultIcon = L.icon({
   shadowSize: [41, 41]
 });
 
+export const driverIcon = L.divIcon({
+  html: '<div style="font-size: 24px; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">🚕</div>',
+  className: 'driver-marker',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
 interface MapProps {
   center: [number, number];
   zoom?: number;

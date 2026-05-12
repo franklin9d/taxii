@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { MapComponent } from '../../components/MapComponent';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { MapComponent, driverIcon } from '../../components/MapComponent';
+import { collection, query, where, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { MapPin, Navigation, Map } from 'lucide-react';
 
@@ -12,6 +12,8 @@ export function DriverDashboard() {
   const [isOnline, setIsOnline] = useState(false);
   const [availableTrips, setAvailableTrips] = useState<any[]>([]);
   const [myActiveTrip, setMyActiveTrip] = useState<any>(null);
+  const [currentLocation, setCurrentLocation] = useState<[number, number]>(DEFAULT_CENTER);
+  const watchIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     // If we have an active trip, don't show available
@@ -47,6 +49,51 @@ export function DriverDashboard() {
     
     return () => unsubscribe();
   }, [userData]);
+
+  useEffect(() => {
+    if (isOnline || myActiveTrip) {
+      if ('geolocation' in navigator) {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          async (position) => {
+            const loc: [number, number] = [position.coords.latitude, position.coords.longitude];
+            setCurrentLocation(loc);
+            
+            if (userData?.id) {
+              try {
+                await setDoc(doc(db, 'drivers', userData.id), {
+                  name: userData.name,
+                  isOnline,
+                  currentLat: loc[0],
+                  currentLng: loc[1],
+                  updatedAt: Date.now()
+                }, { merge: true });
+              } catch (e) {
+                console.error("Error updating location", e);
+              }
+            }
+          },
+          (error) => {
+            console.error("Location watch error", error);
+          },
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+        );
+      }
+    } else {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (userData?.id) {
+         setDoc(doc(db, 'drivers', userData.id), { isOnline: false }, { merge: true }).catch(console.error);
+      }
+    }
+
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, [isOnline, myActiveTrip, userData]);
 
   const toggleOnline = () => {
     // In a real app we would update the driver doc, but we can just use local state for the demo
@@ -84,7 +131,10 @@ export function DriverDashboard() {
     <div className="flex flex-col h-full bg-bg-light relative">
       <div className="absolute inset-0 z-0 bg-gray-light">
         <div className="absolute inset-0 babylonian-pattern z-0 opacity-50"></div>
-        <MapComponent center={DEFAULT_CENTER} />
+        <MapComponent 
+          center={currentLocation} 
+          markers={[{ id: 'me', position: currentLocation, icon: driverIcon }]} 
+        />
       </div>
 
       {myActiveTrip ? (

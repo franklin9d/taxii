@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { MapComponent } from '../../components/MapComponent';
+import { MapComponent, driverIcon } from '../../components/MapComponent';
 import { MapPin, Navigation, CarTaxiFront, Clock } from 'lucide-react';
 import { collection, addDoc, onSnapshot, query, where, orderBy, limit, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
@@ -19,6 +19,7 @@ export function CustomerDashboard() {
   const [activeTrip, setActiveTrip] = useState<any>(null);
   const [requestingTrip, setRequestingTrip] = useState(false);
   const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
+  const [driverLocation, setDriverLocation] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     handleGetLocation();
@@ -106,6 +107,25 @@ export function CustomerDashboard() {
     return () => unsubscribe();
   }, [userData]);
 
+  // Listen to assigned driver location
+  useEffect(() => {
+    if (activeTrip && activeTrip.driverId) {
+      const unsubscribe = onSnapshot(doc(db, 'drivers', activeTrip.driverId), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (typeof data.currentLat === 'number' && typeof data.currentLng === 'number') {
+            setDriverLocation([data.currentLat, data.currentLng]);
+          }
+        }
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, `drivers/${activeTrip.driverId}`);
+      });
+      return () => unsubscribe();
+    } else {
+      setDriverLocation(null);
+    }
+  }, [activeTrip?.driverId]);
+
   const handleGetLocation = () => {
     setGettingLocation(true);
     setLocationError(null);
@@ -157,13 +177,18 @@ export function CustomerDashboard() {
     }
   };
 
+  const mapMarkers = [{ id: 'me', position: currentLocation } as any];
+  if (driverLocation) {
+    mapMarkers.push({ id: 'driver', position: driverLocation, icon: driverIcon });
+  }
+
   return (
     <div className="flex flex-col h-full bg-bg-light relative">
       <div className="absolute inset-0 z-0 bg-gray-light">
         <div className="absolute inset-0 babylonian-pattern z-0 opacity-50"></div>
         <MapComponent 
-          center={currentLocation} 
-          markers={[{ id: 'me', position: currentLocation }]} 
+          center={driverLocation || currentLocation} 
+          markers={mapMarkers} 
         />
       </div>
 

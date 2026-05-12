@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import { LandingPage } from './pages/LandingPage';
@@ -15,7 +16,7 @@ import { DriverRegister } from './pages/driver/DriverRegister';
 // Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 
-function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) {
+function ProtectedRoute({ children, allowedRoles }: { children: ReactNode, allowedRoles?: string[] }) {
   const { user, userData, initialized } = useAuthStore();
   
   if (!initialized) {
