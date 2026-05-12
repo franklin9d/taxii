@@ -1,0 +1,141 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the platform (customer, driver, or admin)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "driver", "admin"] },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "avatar": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["id", "name", "phone", "role", "createdAt"]
+    },
+    "Driver": {
+      "title": "Driver Profile",
+      "description": "Additional profiling details for a driver",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "city": { "type": "string" },
+        "area": { "type": "string" },
+        "carType": { "type": "string" },
+        "carModel": { "type": "string" },
+        "carColor": { "type": "string" },
+        "carPlateNumber": { "type": "string" },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended"] },
+        "rejectionReason": { "type": "string" },
+        "isOnline": { "type": "boolean" },
+        "currentLat": { "type": "number" },
+        "currentLng": { "type": "number" },
+        "rating": { "type": "number" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["userId", "approvalStatus"]
+    },
+    "Trip": {
+      "title": "Trip",
+      "description": "Trip request and execution data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "driverId": { "type": "string" },
+        "pickupAddress": { "type": "string" },
+        "pickupLat": { "type": "number" },
+        "pickupLng": { "type": "number" },
+        "destinationAddress": { "type": "string" },
+        "destinationLat": { "type": "number" },
+        "destinationLng": { "type": "number" },
+        "estimatedPrice": { "type": "number" },
+        "finalPrice": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "status": { "type": "string", "enum": ["created", "searching_for_driver", "driver_assigned", "driver_on_way", "driver_arrived", "trip_started", "completed", "cancelled"] },
+        "cancelReason": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "acceptedAt": { "type": "integer" },
+        "startedAt": { "type": "integer" },
+        "completedAt": { "type": "integer" }
+      },
+      "required": ["customerId", "pickupAddress", "destinationAddress", "status", "createdAt"]
+    },
+    "PricingSetting": {
+      "title": "Pricing Settings",
+      "description": "Global pricing configuration",
+      "type": "object",
+      "properties": {
+        "baseFare": { "type": "number" },
+        "pricePerKm": { "type": "number" },
+        "pricePerMinute": { "type": "number" },
+        "minimumFare": { "type": "number" },
+        "surgeMultiplier": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "updatedAt": { "type": "integer" }
+      }
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Customer or driver complaint",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "tripId": { "type": "string" },
+        "type": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_progress", "closed"] },
+        "adminReply": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["userId", "message", "status", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "type": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["userId", "title", "body", "isRead", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Application users across all roles"
+    },
+    "drivers/{driverId}": {
+      "schema": { "$ref": "#/entities/Driver" },
+      "description": "Extended profiling details for users who are drivers"
+    },
+    "trips/{tripId}": {
+      "schema": { "$ref": "#/entities/Trip" },
+      "description": "Historical and active trips"
+    },
+    "settings/{settingId}": {
+      "schema": { "$ref": "#/entities/PricingSetting" },
+      "description": "System-wide settings (e.g. settings/pricing)"
+    },
+    "complaints/{complaintId}": {
+      "schema": { "$ref": "#/entities/Complaint" },
+      "description": "Complaints filed by users"
+    },
+    "notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Notifications for users"
+    }
+  }
+}

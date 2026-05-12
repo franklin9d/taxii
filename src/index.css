@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-dark: var(--navy);
+  --color-primary: #0A2447;
+  --color-accent-gold: var(--gold);
+  --color-accent-yellow: var(--yellow);
+  --color-bg-light: var(--white);
+  --color-gray-light: var(--gray);
+  --color-luxury-black: var(--black);
+
+  --font-sans: "Cairo", "Tajawal", "IBM Plex Sans Arabic", sans-serif;
+}
+
+:root {
+  --navy: #071A33;
+  --gold: #D9A441;
+  --yellow: #FFC928;
+  --white: #F8F9FA;
+  --black: #050505;
+  --gray: #E5E7EB;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-light text-luxury-black font-sans antialiased;
+    direction: rtl;
+  }
+}
+
+.babylonian-pattern {
+  background-image: radial-gradient(var(--gold) 0.5px, transparent 0.5px);
+  background-size: 16px 16px;
+  opacity: 0.1;
+}
+
+.gold-border {
+  border-image: linear-gradient(to bottom, var(--gold), transparent) 1;
+}

@@ -1,0 +1,6 @@
+{
+  "name": "تكسي الطارمية",
+  "description": "منصة تكسي ذكية للحجز السريع والآمن داخل الطارمية والمناطق المجاورة",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}
