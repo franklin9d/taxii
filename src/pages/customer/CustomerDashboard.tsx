@@ -100,16 +100,21 @@ export function CustomerDashboard() {
     
     const q = query(
       collection(db, 'trips'), 
-      where('customerId', '==', userData.id),
-      where('status', 'in', ['created', 'searching_for_driver', 'driver_assigned', 'driver_on_way', 'driver_arrived', 'trip_started'])
+      where('customerId', '==', userData.id)
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        setActiveTrip({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
-      } else {
-        setActiveTrip(null);
+        // Filter locally
+        const activeStatuses = ['created', 'searching_for_driver', 'driver_assigned', 'driver_on_way', 'driver_arrived', 'trip_started'];
+        const activeDoc = snapshot.docs.find(doc => activeStatuses.includes(doc.data().status));
+        
+        if (activeDoc) {
+          setActiveTrip({ id: activeDoc.id, ...activeDoc.data() });
+          return;
+        }
       }
+      setActiveTrip(null);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'trips');
     });

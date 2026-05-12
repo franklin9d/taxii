@@ -3,12 +3,24 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { FileText, Upload, CheckCircle } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { FileUpload } from '../../components/FileUpload';
 
 export function DriverRegister() {
   const { userData } = useAuthStore();
   const [carType, setCarType] = useState('صالون');
   const [carModel, setCarModel] = useState('');
   const [carColor, setCarColor] = useState('');
+  const [carNumber, setCarNumber] = useState('');
+  const [governorate, setGovernorate] = useState('بغداد');
+  
+  // Documents
+  const [nationalIdUrl, setNationalIdUrl] = useState('');
+  const [drivingLicenseUrl, setDrivingLicenseUrl] = useState('');
+  const [carRegistrationUrl, setCarRegistrationUrl] = useState('');
+  const [carFrontPhotoUrl, setCarFrontPhotoUrl] = useState('');
+  const [carBackPhotoUrl, setCarBackPhotoUrl] = useState('');
+  const [personalPhotoUrl, setPersonalPhotoUrl] = useState('');
+
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
@@ -16,6 +28,11 @@ export function DriverRegister() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userData?.id) return;
+    
+    if (!nationalIdUrl || !drivingLicenseUrl || !carRegistrationUrl || !carFrontPhotoUrl || !carBackPhotoUrl || !personalPhotoUrl) {
+      setErrorStatus('يرجى رفع جميع المستمسكات المطلوبة قبل إرسال الطلب.');
+      return;
+    }
     
     setLoading(true);
     setErrorStatus(null);
@@ -25,6 +42,16 @@ export function DriverRegister() {
           carType,
           carModel,
           carColor,
+          carNumber,
+          governorate,
+        },
+        documents: {
+          nationalIdUrl,
+          drivingLicenseUrl,
+          carRegistrationUrl,
+          carFrontPhotoUrl,
+          carBackPhotoUrl,
+          personalPhotoUrl
         },
         driverApproved: false, // Wait for admin to approve
         status: 'pending_approval'
@@ -92,39 +119,57 @@ export function DriverRegister() {
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none" 
               />
             </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">لون السيارة</label>
-            <input 
-               type="text" 
-               required
-               value={carColor}
-               onChange={e => setCarColor(e.target.value)}
-               placeholder="أبيض، أسود..." 
-               className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none" 
-            />
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">لون السيارة</label>
+              <input 
+                 type="text" 
+                 required
+                 value={carColor}
+                 onChange={e => setCarColor(e.target.value)}
+                 placeholder="أبيض، أسود..." 
+                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none" 
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">رقم اللوحة</label>
+              <input 
+                 type="text" 
+                 required
+                 value={carNumber}
+                 onChange={e => setCarNumber(e.target.value)}
+                 placeholder="مثال: بغداد 12345 ق" 
+                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none" 
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">المحافظة</label>
+              <select 
+                 value={governorate}
+                 onChange={e => setGovernorate(e.target.value)}
+                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none"
+              >
+                 <option>بغداد</option>
+                 <option>البصرة</option>
+                 <option>أربيل</option>
+                 <option>نينوى</option>
+                 <option>النجف</option>
+                 {/* ... other provinces ... */}
+              </select>
+            </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-100">
-            <h3 className="font-bold text-primary-dark mb-4">المستمسكات المطلوبة</h3>
-            <div className="space-y-4">
-              {/* Optional UI for uploading images since we don't have Storage setup properly with rules in this MVP, we will just use placeholders for now */}
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer relative overflow-hidden">
-                <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                <p className="text-sm font-medium">البطاقة الوطنية / هوية الأحوال</p>
-                <p className="text-xs text-gray-500 mt-1">اضغط للرفع أو اسحب الملف هنا</p>
-              </div>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer relative overflow-hidden">
-                <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                <p className="text-sm font-medium">إجازة السوق</p>
-                <p className="text-xs text-gray-500 mt-1">اضغط للرفع أو اسحب الملف هنا</p>
-              </div>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer relative overflow-hidden">
-                <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                <p className="text-sm font-medium">سنوية السيارة</p>
-                <p className="text-xs text-gray-500 mt-1">اضغط للرفع أو اسحب الملف هنا</p>
-              </div>
+          <div className="pt-4 border-t border-gray-100 mt-6">
+            <h3 className="font-bold text-primary-dark mb-4 text-lg">المستمسكات المطلوبة</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FileUpload label="البطاقة الوطنية (الوجهين)" required onUploadComplete={setNationalIdUrl} />
+              <FileUpload label="إجازة السوق" required onUploadComplete={setDrivingLicenseUrl} />
+              <FileUpload label="سنوية السيارة" required onUploadComplete={setCarRegistrationUrl} />
+              <FileUpload label="صورة شخصية (سيلفي)" required onUploadComplete={setPersonalPhotoUrl} />
+              <FileUpload label="صورة السيارة من الأمام" required onUploadComplete={setCarFrontPhotoUrl} />
+              <FileUpload label="صورة السيارة من الخلف" required onUploadComplete={setCarBackPhotoUrl} />
             </div>
           </div>
           

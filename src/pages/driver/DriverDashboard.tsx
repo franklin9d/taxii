@@ -44,15 +44,18 @@ export function DriverDashboard() {
     if (!userData?.id) return;
     const q = query(
       collection(db, 'trips'), 
-      where('driverId', '==', userData.id),
-      where('status', 'in', ['driver_assigned', 'driver_on_way', 'driver_arrived', 'trip_started'])
+      where('driverId', '==', userData.id)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        setMyActiveTrip({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
-      } else {
-        setMyActiveTrip(null);
+        const activeStatuses = ['driver_assigned', 'driver_on_way', 'driver_arrived', 'trip_started'];
+        const activeDoc = snapshot.docs.find(doc => activeStatuses.includes(doc.data().status));
+        if (activeDoc) {
+          setMyActiveTrip({ id: activeDoc.id, ...activeDoc.data() });
+          return;
+        }
       }
+      setMyActiveTrip(null);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'trips'));
     
     return () => unsubscribe();

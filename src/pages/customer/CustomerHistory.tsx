@@ -15,14 +15,16 @@ export function CustomerHistory() {
       try {
         const q = query(
           collection(db, 'trips'),
-          where('customerId', '==', userData.id),
-          orderBy('createdAt', 'desc')
+          where('customerId', '==', userData.id)
         );
         const snapshot = await getDocs(q).catch((e) => {
           handleFirestoreError(e, OperationType.LIST, 'trips');
           throw e;
         });
-        setTrips(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Sort locally to avoid Firebase Composite Index requirement
+        docs.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+        setTrips(docs);
       } catch (e) {
         console.error(e);
       } finally {

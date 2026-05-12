@@ -37,5 +37,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error: ', errInfo);
-  throw new Error(JSON.stringify(errInfo));
+  // We remove the throw new Error here because throwing inside an onSnapshot callback 
+  // leads to an Unhandled Promise Rejection which bubbles out and crashes the entire React 
+  // tree on some environments, leading to the "Gray Screen of Death".
+  // throw new Error(JSON.stringify(errInfo));
 }

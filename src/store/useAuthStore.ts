@@ -18,6 +18,16 @@ export interface UserData {
     carType: string;
     carModel: string;
     carColor: string;
+    carNumber?: string;
+    governorate?: string;
+  };
+  documents?: {
+    nationalIdUrl?: string;
+    drivingLicenseUrl?: string;
+    carRegistrationUrl?: string;
+    carFrontPhotoUrl?: string;
+    carBackPhotoUrl?: string;
+    personalPhotoUrl?: string;
   };
   driverApproved?: boolean;
 }
