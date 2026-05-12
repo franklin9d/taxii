@@ -6,7 +6,7 @@ export function DriverLayout() {
   const { userData } = useAuthStore();
 
   return (
-    <div className="min-h-screen bg-bg-light flex flex-col">
+    <div className="h-screen w-full bg-bg-light flex flex-col">
       <header className="h-16 border-b border-gray-200 bg-white px-4 md:px-8 flex items-center justify-between z-10 top-0 sticky">
         <div className="flex items-center gap-3">
           <div className="text-sm font-medium bg-accent-yellow/10 px-3 py-1 rounded-full text-primary-dark border border-accent-yellow/30">
@@ -20,7 +20,7 @@ export function DriverLayout() {
               <div className="text-[10px] text-gray-500 uppercase">كابتن</div>
             </div>
             <div className="w-10 h-10 rounded-full bg-primary-dark border-2 border-accent-gold flex items-center justify-center text-accent-gold font-bold">
-              {userData?.name.substring(0, 1) || 'س'}
+              {userData?.name?.substring(0, 1) || 'س'}
             </div>
           </div>
         </div>

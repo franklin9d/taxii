@@ -6,7 +6,7 @@ export function AdminLayout() {
   const { userData, logout } = useAuthStore();
 
   return (
-    <div className="min-h-screen bg-bg-light flex">
+    <div className="h-screen w-full bg-bg-light flex">
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-primary-dark text-white hidden md:flex flex-col shadow-2xl z-10 border-l border-white/5 relative">
         <div className="absolute inset-0 babylonian-pattern opacity-10 pointer-events-none"></div>
@@ -41,7 +41,7 @@ export function AdminLayout() {
         <div className="p-4 border-t border-white/10 relative z-10">
           <div className="flex items-center gap-3 mb-4 bg-black/20 p-3 rounded-xl border border-white/5">
             <div className="w-10 h-10 rounded-full bg-primary-dark border-2 border-accent-gold flex items-center justify-center text-accent-gold font-bold">
-              {userData?.name.substring(0, 1)}
+              {userData?.name?.substring(0, 1)}
             </div>
             <div>
               <p className="text-sm font-bold text-white">{userData?.name}</p>

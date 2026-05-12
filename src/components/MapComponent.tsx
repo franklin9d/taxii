@@ -1,8 +1,8 @@
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-const defaultIcon = L.icon({
+export const defaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
@@ -23,7 +23,8 @@ export const driverIcon = L.divIcon({
 interface MapProps {
   center: [number, number];
   zoom?: number;
-  markers?: Array<{id: string, position: [number, number], icon?: L.Icon}>;
+  markers?: Array<{id: string, position: [number, number], icon?: L.Icon | L.DivIcon}>;
+  onClick?: (latlng: [number, number]) => void;
 }
 
 function ChangeView({ center, zoom }: { center: [number, number], zoom: number }) {
@@ -32,7 +33,16 @@ function ChangeView({ center, zoom }: { center: [number, number], zoom: number }
   return null;
 }
 
-export function MapComponent({ center, zoom = 15, markers = [] }: MapProps) {
+function MapEventsWrapper({ onClick }: { onClick?: (latlng: [number, number]) => void }) {
+  useMapEvents({
+    click(e) {
+      if (onClick) onClick([e.latlng.lat, e.latlng.lng]);
+    }
+  });
+  return null;
+}
+
+export function MapComponent({ center, zoom = 15, markers = [], onClick }: MapProps) {
   return (
     <MapContainer center={center} zoom={zoom} scrollWheelZoom={true} className="w-full h-full z-0">
       <TileLayer
@@ -40,6 +50,7 @@ export function MapComponent({ center, zoom = 15, markers = [] }: MapProps) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <ChangeView center={center} zoom={zoom} />
+      <MapEventsWrapper onClick={onClick} />
       {markers.map(m => (
         <Marker key={m.id} position={m.position} icon={m.icon || defaultIcon} />
       ))}

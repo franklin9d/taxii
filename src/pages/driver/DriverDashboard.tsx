@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useNavigate } from 'react-router-dom';
 import { MapComponent, driverIcon } from '../../components/MapComponent';
 import { collection, query, where, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
@@ -9,11 +10,18 @@ const DEFAULT_CENTER: [number, number] = [33.6744, 44.3800];
 
 export function DriverDashboard() {
   const { userData, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [isOnline, setIsOnline] = useState(false);
   const [availableTrips, setAvailableTrips] = useState<any[]>([]);
   const [myActiveTrip, setMyActiveTrip] = useState<any>(null);
   const [currentLocation, setCurrentLocation] = useState<[number, number]>(DEFAULT_CENTER);
   const watchIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (userData && (!userData.driverInfo || userData.status === 'pending_approval')) {
+      navigate('/driver/register');
+    }
+  }, [userData, navigate]);
 
   useEffect(() => {
     // If we have an active trip, don't show available
@@ -128,7 +136,7 @@ export function DriverDashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-bg-light relative">
+    <div className="absolute inset-0 flex flex-col bg-bg-light">
       <div className="absolute inset-0 z-0 bg-gray-light">
         <div className="absolute inset-0 babylonian-pattern z-0 opacity-50"></div>
         <MapComponent 

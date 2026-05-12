@@ -8,6 +8,8 @@ import { AdminLayout } from './components/layout/AdminLayout';
 
 // Customer Pages
 import { CustomerDashboard } from './pages/customer/CustomerDashboard';
+import { CustomerHistory } from './pages/customer/CustomerHistory';
+import { CustomerProfile } from './pages/customer/CustomerProfile';
 
 // Driver Pages
 import { DriverDashboard } from './pages/driver/DriverDashboard';
@@ -41,8 +43,8 @@ export default function App() {
         <Route path="/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerLayout /></ProtectedRoute>}>
           <Route index element={<CustomerDashboard />} />
           <Route path="book" element={<CustomerDashboard />} />
-          <Route path="history" element={<div className="h-full flex flex-col items-center justify-center text-gray-500">قريباً... صفحة الرحلات</div>} />
-          <Route path="profile" element={<div className="h-full flex flex-col items-center justify-center text-gray-500">قريباً... صفحة الحساب</div>} />
+          <Route path="history" element={<CustomerHistory />} />
+          <Route path="profile" element={<CustomerProfile />} />
         </Route>
         
         {/* Driver Routes */}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { MapComponent, driverIcon } from '../../components/MapComponent';
+import { MapComponent, driverIcon, defaultIcon } from '../../components/MapComponent';
 import { MapPin, Navigation, CarTaxiFront, Clock } from 'lucide-react';
 import { collection, addDoc, onSnapshot, query, where, orderBy, limit, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
@@ -15,11 +15,21 @@ export function CustomerDashboard() {
   
   const [pickupAddress, setPickupAddress] = useState('');
   const [destinationAddress, setDestinationAddress] = useState('');
+  const [pickupLocation, setPickupLocation] = useState<[number, number]>(DEFAULT_CENTER);
+  const [destinationLocation, setDestinationLocation] = useState<[number, number] | null>(null);
+  const [focusedField, setFocusedField] = useState<'pickup' | 'destination'>('pickup');
+  
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState<any[]>([]);
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
+  const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
   
   const [activeTrip, setActiveTrip] = useState<any>(null);
   const [requestingTrip, setRequestingTrip] = useState(false);
   const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
   const [driverLocation, setDriverLocation] = useState<[number, number] | null>(null);
+
+  const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
 
   useEffect(() => {
     handleGetLocation();
@@ -126,14 +136,99 @@ export function CustomerDashboard() {
     }
   }, [activeTrip?.driverId]);
 
+  useEffect(() => {
+    if (destinationAddress.length >= 3) {
+      // Mock calculation based on length to simulate dynamic price
+      const basePrice = 3000;
+      const lengthFactor = Math.min(destinationAddress.length, 20) * 150;
+      setEstimatedPrice(basePrice + lengthFactor);
+    } else {
+      setEstimatedPrice(null);
+    }
+  }, [destinationAddress]);
+
+  const reverseGeocode = async (latlng: [number, number]): Promise<string> => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng[0]}&lon=${latlng[1]}`);
+      const data = await res.json();
+      return data.display_name || `${latlng[0].toFixed(4)}, ${latlng[1].toFixed(4)}`;
+    } catch(e) {
+      return `${latlng[0].toFixed(4)}, ${latlng[1].toFixed(4)}`;
+    }
+  };
+
+  const handleMapClick = async (latlng: [number, number]) => {
+    if (focusedField === 'pickup') {
+      setPickupLocation(latlng);
+      setCurrentLocation(latlng);
+      setPickupAddress("جاري التحديد...");
+      const addr = await reverseGeocode(latlng);
+      setPickupAddress(addr);
+    } else {
+      setDestinationLocation(latlng);
+      setDestinationAddress("جاري التحديد...");
+      const addr = await reverseGeocode(latlng);
+      setDestinationAddress(addr);
+    }
+  };
+
+  const fetchSuggestions = async (query: string, setter: (val: any[]) => void) => {
+    if (query.length < 3) {
+      setter([]);
+      return;
+    }
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=iq&limit=5`);
+      const data = await res.json();
+      setter(data);
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  const handleAddressChange = (type: 'pickup' | 'destination', val: string) => {
+    if (type === 'pickup') {
+      setPickupAddress(val);
+      setShowPickupSuggestions(true);
+      fetchSuggestions(val, setPickupSuggestions);
+    } else {
+      setDestinationAddress(val);
+      setShowDestinationSuggestions(true);
+      fetchSuggestions(val, setDestinationSuggestions);
+    }
+  };
+
+  const selectSuggestion = (type: 'pickup' | 'destination', place: any) => {
+    const latlng: [number, number] = [parseFloat(place.lat), parseFloat(place.lon)];
+    if (type === 'pickup') {
+      setPickupAddress(place.display_name);
+      setPickupLocation(latlng);
+      setCurrentLocation(latlng);
+      setShowPickupSuggestions(false);
+      setFocusedField('destination');
+    } else {
+      setDestinationAddress(place.display_name);
+      setDestinationLocation(latlng);
+      setShowDestinationSuggestions(false);
+    }
+  };
+
   const handleGetLocation = () => {
     setGettingLocation(true);
     setLocationError(null);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCurrentLocation([position.coords.latitude, position.coords.longitude]);
+        async (position) => {
+          const latlng: [number, number] = [position.coords.latitude, position.coords.longitude];
+          setCurrentLocation(latlng);
+          setPickupLocation(latlng);
+          
+          setPickupAddress("جاري التحديد...");
+          const addr = await reverseGeocode(latlng);
+          setPickupAddress(addr);
+          
           setGettingLocation(false);
+          setFocusedField('destination');
         },
         (error) => {
           console.error("Error getting location:", error);
@@ -160,13 +255,13 @@ export function CustomerDashboard() {
       await addDoc(collection(db, 'trips'), {
         customerId: userData.id,
         pickupAddress,
-        pickupLat: currentLocation[0],
-        pickupLng: currentLocation[1],
+        pickupLat: pickupLocation[0],
+        pickupLng: pickupLocation[1],
         destinationAddress,
-        destinationLat: currentLocation[0] + 0.01, // Mock dest for now
-        destinationLng: currentLocation[1] + 0.01,
+        destinationLat: destinationLocation ? destinationLocation[0] : pickupLocation[0] + 0.01,
+        destinationLng: destinationLocation ? destinationLocation[1] : pickupLocation[1] + 0.01,
         status: 'searching_for_driver',
-        estimatedPrice: 3000,
+        estimatedPrice: estimatedPrice || 3000,
         createdAt: Date.now()
       });
     } catch (e) {
@@ -177,18 +272,22 @@ export function CustomerDashboard() {
     }
   };
 
-  const mapMarkers = [{ id: 'me', position: currentLocation } as any];
+  const mapMarkers = [{ id: 'pickup', position: pickupLocation } as any];
+  if (destinationLocation) {
+    mapMarkers.push({ id: 'destination', position: destinationLocation, icon: defaultIcon }); // We would customize icon, using default for now
+  }
   if (driverLocation) {
     mapMarkers.push({ id: 'driver', position: driverLocation, icon: driverIcon });
   }
 
   return (
-    <div className="flex flex-col h-full bg-bg-light relative">
+    <div className="absolute inset-0 flex flex-col bg-bg-light">
       <div className="absolute inset-0 z-0 bg-gray-light">
         <div className="absolute inset-0 babylonian-pattern z-0 opacity-50"></div>
         <MapComponent 
-          center={driverLocation || currentLocation} 
+          center={currentLocation} 
           markers={mapMarkers} 
+          onClick={activeTrip ? undefined : handleMapClick}
         />
       </div>
 
@@ -270,13 +369,14 @@ export function CustomerDashboard() {
               )}
               
               <div className="relative">
-                <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-blue-500 mt-1"></div>
+                <div className={`absolute top-3 right-3 w-2 h-2 rounded-full mt-1 ${focusedField === 'pickup' ? 'bg-blue-500 shadow-md ring-2 ring-blue-200' : 'bg-gray-400'}`}></div>
                 <input 
                   type="text" 
                   value={pickupAddress}
-                  onChange={e => setPickupAddress(e.target.value)}
+                  onFocus={() => setFocusedField('pickup')}
+                  onChange={e => handleAddressChange('pickup', e.target.value)}
                   placeholder={gettingLocation ? "جاري التحديد..." : "موقع الانطلاق..."}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pr-10 pl-4 focus:outline-none focus:border-accent-gold transition-all text-sm"
+                  className={`w-full bg-gray-50 border rounded-xl py-3 pr-10 pl-4 focus:outline-none transition-all text-sm ${focusedField === 'pickup' ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}
                 />
                 <button 
                   onClick={handleGetLocation}
@@ -285,23 +385,64 @@ export function CustomerDashboard() {
                 >
                   <Navigation size={18} />
                 </button>
+                {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                  <div className="absolute z-20 w-full bg-white mt-1 border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {pickupSuggestions.map((place, i) => (
+                      <div 
+                        key={i} 
+                        onClick={() => selectSuggestion('pickup', place)}
+                        className="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer text-sm truncate"
+                      >
+                        {place.display_name}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="relative">
-                <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-red-500 mt-1"></div>
+                <div className={`absolute top-3 right-3 w-2 h-2 rounded-full mt-1 ${focusedField === 'destination' ? 'bg-red-500 shadow-md ring-2 ring-red-200' : 'bg-gray-400'}`}></div>
                 <input 
                   type="text" 
                   value={destinationAddress}
-                  onChange={e => setDestinationAddress(e.target.value)}
-                  placeholder="اكتب الوجهة" 
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pr-10 pl-4 focus:outline-none focus:border-accent-gold transition-all text-sm"
+                  onFocus={() => setFocusedField('destination')}
+                  onChange={e => handleAddressChange('destination', e.target.value)}
+                  placeholder="اكتب الوجهة..." 
+                  className={`w-full bg-gray-50 border rounded-xl py-3 pr-10 pl-4 focus:outline-none transition-all text-sm ${focusedField === 'destination' ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200'}`}
                 />
+                {showDestinationSuggestions && destinationSuggestions.length > 0 && (
+                  <div className="absolute z-20 w-full bg-white mt-1 border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {destinationSuggestions.map((place, i) => (
+                      <div 
+                        key={i} 
+                        onClick={() => selectSuggestion('destination', place)}
+                        className="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer text-sm truncate"
+                      >
+                        {place.display_name}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {estimatedPrice && (
+                <div className="mt-4 p-4 bg-accent-yellow/10 border border-accent-gold/30 rounded-xl flex items-center justify-between animate-fade-in transition-all">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-accent-gold/20 flex items-center justify-center text-primary-dark">
+                      <span className="font-bold text-sm">IQD</span>
+                    </div>
+                    <span className="text-gray-700 font-medium text-sm">السعر التقديري</span>
+                  </div>
+                  <div className="text-2xl font-black text-primary-dark tracking-tight">
+                    {estimatedPrice.toLocaleString('en-US')} <span className="text-sm text-gray-500 font-bold">د.ع</span>
+                  </div>
+                </div>
+              )}
               
               <button 
                 onClick={requestTrip}
                 disabled={requestingTrip || !pickupAddress || !destinationAddress}
-                className="w-full bg-accent-yellow hover:bg-[#F2BD23] disabled:opacity-50 disabled:hover:bg-accent-yellow text-primary-dark font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95"
+                className="w-full bg-accent-yellow hover:bg-[#F2BD23] disabled:opacity-50 disabled:hover:bg-accent-yellow text-primary-dark font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95 mt-4"
               >
                 {requestingTrip ? 'جاري الطلب...' : 'احجز رحلتك الآن'}
               </button>
