@@ -11,9 +11,15 @@ export interface UserData {
   email: string;
   phone: string;
   role: Role;
-  status: 'active' | 'suspended';
+  status: 'active' | 'suspended' | 'pending_approval';
   avatar?: string;
   createdAt: number;
+  driverInfo?: {
+    carType: string;
+    carModel: string;
+    carColor: string;
+  };
+  driverApproved?: boolean;
 }
 
 interface AuthState {

@@ -6,7 +6,7 @@ export function AdminLayout() {
   const { userData, logout } = useAuthStore();
 
   return (
-    <div className="h-screen w-full bg-bg-light flex">
+    <div className="h-[100dvh] w-full bg-bg-light flex">
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-primary-dark text-white hidden md:flex flex-col shadow-2xl z-10 border-l border-white/5 relative">
         <div className="absolute inset-0 babylonian-pattern opacity-10 pointer-events-none"></div>
