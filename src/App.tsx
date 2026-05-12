@@ -40,6 +40,9 @@ export default function App() {
         {/* Customer Routes */}
         <Route path="/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerLayout /></ProtectedRoute>}>
           <Route index element={<CustomerDashboard />} />
+          <Route path="book" element={<CustomerDashboard />} />
+          <Route path="history" element={<div className="h-full flex flex-col items-center justify-center text-gray-500">قريباً... صفحة الرحلات</div>} />
+          <Route path="profile" element={<div className="h-full flex flex-col items-center justify-center text-gray-500">قريباً... صفحة الحساب</div>} />
         </Route>
         
         {/* Driver Routes */}
