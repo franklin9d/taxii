@@ -1,11 +1,38 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { FileText, CheckCircle, ChevronLeft, ChevronRight, User, Car } from 'lucide-react';
+import { FileText, CheckCircle, ChevronLeft, ChevronRight, User, Car, Image as ImageIcon, Check } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { FileUpload } from '../../components/FileUpload';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+
+function LocalFileUpload({ label, file, setFile }: { label: string, file: File | null, setFile: (f: File | null) => void }) {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  return (
+    <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm flex items-center justify-between transition-all hover:border-gray-200">
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-sm ${file ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-500'}`}>
+          {file ? <Check className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
+        </div>
+        <div>
+          <p className="font-bold text-gray-800 text-sm">{label} <span className="text-red-500">*</span></p>
+          <p className="text-xs text-gray-400 mt-0.5">{file ? 'تم اختيار الصورة' : 'لم يتم اختيار صورة'}</p>
+        </div>
+      </div>
+      <div>
+        <label className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2 px-4 rounded-xl cursor-pointer transition-colors inline-block">
+          {file ? 'تغيير' : 'اختيار'}
+          <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+        </label>
+      </div>
+    </div>
+  );
+}
 
 export function DriverRegister() {
   const { userData, logout } = useAuthStore();
@@ -22,14 +49,15 @@ export function DriverRegister() {
   const [carModel, setCarModel] = useState('');
   const [carColor, setCarColor] = useState('');
   const [carNumber, setCarNumber] = useState('');
+  const [seats, setSeats] = useState('4');
 
   // Step 3: Documents
-  const [nationalIdUrl, setNationalIdUrl] = useState('');
-  const [drivingLicenseUrl, setDrivingLicenseUrl] = useState('');
-  const [carRegistrationUrl, setCarRegistrationUrl] = useState('');
-  const [carFrontPhotoUrl, setCarFrontPhotoUrl] = useState('');
-  const [carBackPhotoUrl, setCarBackPhotoUrl] = useState('');
-  const [personalPhotoUrl, setPersonalPhotoUrl] = useState('');
+  const [nationalId, setNationalId] = useState<File | null>(null);
+  const [drivingLicense, setDrivingLicense] = useState<File | null>(null);
+  const [carRegistration, setCarRegistration] = useState<File | null>(null);
+  const [personalPhoto, setPersonalPhoto] = useState<File | null>(null);
+  const [carFrontPhoto, setCarFrontPhoto] = useState<File | null>(null);
+  const [carBackPhoto, setCarBackPhoto] = useState<File | null>(null);
 
   const nextStep = () => {
     if (step === 1) {
@@ -41,9 +69,12 @@ export function DriverRegister() {
       if (!carNumber) { toast.error('يرجى إدخال رقم اللوحة'); return; }
       setStep(3);
     } else if (step === 3) {
-      if (!nationalIdUrl || !drivingLicenseUrl || !carRegistrationUrl || !carFrontPhotoUrl || !carBackPhotoUrl || !personalPhotoUrl) {
-         toast.error('يرجى رفع جميع المستمسكات المطلوبة'); return;
-      }
+      if (!nationalId) { toast.error('يرجى رفع صورة الهوية / البطاقة الوطنية'); return; }
+      if (!drivingLicense) { toast.error('يرجى رفع صورة إجازة السوق'); return; }
+      if (!carRegistration) { toast.error('يرجى رفع صورة السنوية'); return; }
+      if (!personalPhoto) { toast.error('يرجى رفع الصورة الشخصية'); return; }
+      if (!carFrontPhoto) { toast.error('يرجى رفع صورة السيارة من الأمام'); return; }
+      if (!carBackPhoto) { toast.error('يرجى رفع صورة السيارة من الخلف'); return; }
       setStep(4);
     }
   };
@@ -51,9 +82,43 @@ export function DriverRegister() {
   const prevStep = () => setStep(step - 1);
 
   const handleSubmit = async () => {
-    if (!userData?.id) return;
+    if (!userData?.id || !userData.name) {
+      toast.error('حدث خطأ في تحميل بيانات حسابك');
+      return;
+    }
     setLoading(true);
+    const formData = new FormData();
+    formData.append('fullName', userData.name);
+    formData.append('email', userData.email || '');
+    formData.append('phone', phone);
+    formData.append('area', governorate);
+    formData.append('carType', carType);
+    formData.append('carModel', carModel);
+    formData.append('carColor', carColor);
+    formData.append('plateNumber', carNumber);
+    formData.append('seats', seats);
+    formData.append('uid', userData.id);
+
+    if (nationalId) formData.append('البطاقة_الوطنية_أو_الهوية', nationalId);
+    if (drivingLicense) formData.append('إجازة_السوق', drivingLicense);
+    if (carRegistration) formData.append('سنوية_السيارة', carRegistration);
+    if (personalPhoto) formData.append('الصورة_الشخصية', personalPhoto);
+    if (carFrontPhoto) formData.append('صورة_السيارة_أمام', carFrontPhoto);
+    if (carBackPhoto) formData.append('صورة_السيارة_خلف', carBackPhoto);
+
     try {
+      const res = await fetch('/api/driver/apply', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await res.json();
+      
+      if (!result.success) {
+         toast.error(result.error || 'فشل إرسال الطلب، تأكد من الاتصال.');
+         setLoading(false);
+         return;
+      }
+
       await updateDoc(doc(db, 'users', userData.id), {
         phone,
         driverInfo: {
@@ -62,23 +127,16 @@ export function DriverRegister() {
           carColor,
           carNumber,
           governorate,
-        },
-        documents: {
-          nationalIdUrl,
-          drivingLicenseUrl,
-          carRegistrationUrl,
-          carFrontPhotoUrl,
-          carBackPhotoUrl,
-          personalPhotoUrl
+          seats
         },
         driverApproved: false,
         status: 'pending_approval'
       });
+      
       toast.success('تم إرسال طلبك للمراجعة بنجاح!');
-      // Assuming layout or dashboard will handle the `pending_approval` status
     } catch (e: any) {
       console.error(e);
-      toast.error('حدث خطأ. حاول مرة أخرى.');
+      toast.error('فشل إرسال الطلب، حاول مرة أخرى.');
     } finally {
       setLoading(false);
     }
@@ -92,16 +150,21 @@ export function DriverRegister() {
         </div>
         <h2 className="text-2xl font-bold text-primary-dark mb-3">طلبك قيد المراجعة</h2>
         <p className="text-gray-500 mb-8 max-w-sm leading-relaxed">
-          سيتم مراجعة بياناتك ومستمسكاتك من قبل الإدارة وإشعارك عند الموافقة لتكون جاهزاً لاستقبال الطلبات.
+          تم إرسال بياناتك ومستمسكاتك إلى الإدارة عبر Telegram. سيتم مراجعة طلبك وإشعارك عند القبول أو الرفض.
         </p>
-        <button onClick={() => navigate('/driver/profile')} className="px-6 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
-          تصفح حسابي
-        </button>
+        <div className="flex gap-4">
+          <button onClick={() => navigate('/customer')} className="px-6 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
+            العودة للرئيسية
+          </button>
+          <button onClick={logout} className="px-6 py-3 bg-red-50 border border-red-100 text-red-600 font-bold rounded-xl shadow-sm hover:bg-red-100 transition-colors">
+            تسجيل الخروج
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (userData?.status === 'suspended') {
+  if (userData?.status === 'suspended' || userData?.status === 'rejected') {
      return (
       <div className="absolute inset-0 p-6 md:max-w-2xl mx-auto flex flex-col justify-center items-center text-center bg-bg-light pb-24">
         <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white">
@@ -109,9 +172,9 @@ export function DriverRegister() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-red-600 mb-3">الحساب موقوف</h2>
+        <h2 className="text-2xl font-bold text-red-600 mb-3">{userData.status === 'rejected' ? 'تم رفض طلبك' : 'الحساب موقوف'}</h2>
         <p className="text-gray-500 mb-8 max-w-sm leading-relaxed">
-          تم إيقاف حسابك من قبل الإدارة. يرجى التواصل مع الدعم الفني للمزيد من التفاصيل.
+           {userData.status === 'rejected' ? 'يبدو أن الإدارة قد رفضت طلبك. يمكنك التواصل مع الدعم أو المحاولة لاحقاً.' : 'تم إيقاف حسابك من قبل الإدارة. يرجى التواصل مع الدعم الفني للمزيد من التفاصيل.'}
         </p>
         <button onClick={logout} className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors">
           تسجيل الخروج
@@ -174,17 +237,32 @@ export function DriverRegister() {
             <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-6">
               <Car className="text-accent-gold" /> تفاصيل المركبة
             </h3>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">نوع السيارة <span className="text-red-500">*</span></label>
-              <select 
-                value={carType}
-                onChange={e => setCarType(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none"
-              >
-                <option>صالون</option>
-                <option>عالية</option>
-                <option>VIP</option>
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">نوع السيارة <span className="text-red-500">*</span></label>
+                <select 
+                  value={carType}
+                  onChange={e => setCarType(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none"
+                >
+                  <option>صالون</option>
+                  <option>عالية</option>
+                  <option>VIP</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">عدد المقاعد <span className="text-red-500">*</span></label>
+                <select 
+                  value={seats}
+                  onChange={e => setSeats(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none"
+                >
+                  <option>4</option>
+                  <option>6</option>
+                  <option>7</option>
+                  <option>11</option>
+                </select>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">موديل/سنة الصنع <span className="text-red-500">*</span></label>
@@ -226,13 +304,14 @@ export function DriverRegister() {
              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-4">
               <FileText className="text-accent-gold" /> المستمسكات
             </h3>
-            <p className="text-sm text-gray-500 mb-6">يرجى رفع صور واضحة لسرعة قبول حسابك.</p>
-            <FileUpload label="البطاقة الوطنية (الوجهين)" required onUploadComplete={setNationalIdUrl} />
-            <FileUpload label="إجازة السوق" required onUploadComplete={setDrivingLicenseUrl} />
-            <FileUpload label="سنوية السيارة" required onUploadComplete={setCarRegistrationUrl} />
-            <FileUpload label="صورة شخصية (سيلفي)" required onUploadComplete={setPersonalPhotoUrl} />
-            <FileUpload label="صورة السيارة من الأمام" required onUploadComplete={setCarFrontPhotoUrl} />
-            <FileUpload label="صورة السيارة من الخلف" required onUploadComplete={setCarBackPhotoUrl} />
+            <p className="text-sm text-gray-500 mb-6 font-medium">سيتم إرسالها إلى الإدارة عبر Telegram مباشرة، لا نحفظ الصور في الموقع.</p>
+            
+            <LocalFileUpload label="البطاقة الوطنية (الوجهين)" file={nationalId} setFile={setNationalId} />
+            <LocalFileUpload label="إجازة السوق" file={drivingLicense} setFile={setDrivingLicense} />
+            <LocalFileUpload label="سنوية السيارة" file={carRegistration} setFile={setCarRegistration} />
+            <LocalFileUpload label="صورة شخصية (سيلفي)" file={personalPhoto} setFile={setPersonalPhoto} />
+            <LocalFileUpload label="صورة السيارة من الأمام" file={carFrontPhoto} setFile={setCarFrontPhoto} />
+            <LocalFileUpload label="صورة السيارة من الخلف" file={carBackPhoto} setFile={setCarBackPhoto} />
           </div>
         )}
 
@@ -247,6 +326,7 @@ export function DriverRegister() {
                <h4 className="font-bold text-primary-dark">معلومات الحساب</h4>
                <div className="flex justify-between text-sm"><span className="text-gray-500">الاسم</span><span className="font-medium text-gray-800">{userData?.name}</span></div>
                <div className="flex justify-between text-sm"><span className="text-gray-500">الهاتف</span><span className="font-medium text-gray-800 dir-ltr">{phone}</span></div>
+               <div className="flex justify-between text-sm"><span className="text-gray-500">المنطقة</span><span className="font-medium text-gray-800">{governorate}</span></div>
             </div>
 
             <div className="space-y-3 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
@@ -256,9 +336,9 @@ export function DriverRegister() {
                <div className="flex justify-between text-sm"><span className="text-gray-500">اللوحة</span><span className="font-medium text-gray-800">{carNumber}</span></div>
             </div>
             
-            <div className="space-y-3 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div className="space-y-3 bg-white p-5 rounded-2xl shadow-sm border border-gray-100 items-center flex justify-between">
                <h4 className="font-bold text-primary-dark">المستمسكات (العدد: 6)</h4>
-               <div className="flex justify-between text-sm"><span className="text-gray-500">حالة الرفع</span><span className="font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg">مكتملة</span></div>
+               <span className="font-medium text-green-700 bg-green-50 px-3 py-1.5 rounded-lg text-xs">جاهزة للإرسال لـ Telegram</span>
             </div>
           </div>
         )}
@@ -287,7 +367,7 @@ export function DriverRegister() {
             disabled={loading}
             className="flex-1 bg-[#071426] text-white font-bold py-4 px-6 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70"
           >
-            {loading ? 'جاري الإرسال...' : 'إرسال الطلب للمراجعة'}
+            {loading ? 'جاري إرسال الطلب...' : 'إرسال الطلب للمراجعة'}
             {!loading && <CheckCircle size={20} className="text-[#F6C21A]" />}
           </button>
         )}

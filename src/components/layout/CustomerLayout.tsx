@@ -31,7 +31,7 @@ export function CustomerLayout() {
       </main>
       
       {/* Bottom Navigation for Mobile */}
-      <nav className="flex-none md:hidden h-[72px] w-full bg-white border-t border-gray-200 flex justify-around p-2 z-20 rounded-t-2xl shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
+      <nav className="flex-none md:hidden h-[72px] pb-[env(safe-area-inset-bottom)] box-content w-full bg-white border-t border-gray-200 flex justify-around p-2 pt-2 z-20 rounded-t-2xl shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
         <NavLink to="/customer" end className={({isActive}) => `flex flex-col items-center p-2 rounded-xl transition-all ${isActive ? 'text-accent-gold translate-y-[-2px]' : 'text-gray-400 hover:text-gray-600'}`}>
           {({isActive}) => (
             <>

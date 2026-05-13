@@ -53,7 +53,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: ReactNode, allow
   
   // Specific check for Admin Panel restricted to one email
   if (allowedRoles && allowedRoles.includes('admin')) {
-    if (user.email !== 'vip.frml4@gmail.com') {
+    if (user.email !== 'jost535@gmail.com') {
       return (
         <div className="flex h-screen w-full items-center justify-center p-4 bg-gray-50 flex-col text-center">
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6 shadow-sm">

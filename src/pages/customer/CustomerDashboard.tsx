@@ -362,9 +362,9 @@ export function CustomerDashboard() {
   }
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-bg-light">
+    <div className="absolute inset-0 flex flex-col bg-bg-light outline-none overflow-hidden max-w-full">
       <div className="absolute inset-0 z-0 bg-gray-light">
-        <div className="absolute inset-0 babylonian-pattern z-0 opacity-50"></div>
+        <div className="absolute inset-0 babylonian-pattern z-0 opacity-50 pointer-events-none"></div>
         <MapComponent 
           center={currentLocation} 
           markers={mapMarkers} 
@@ -372,10 +372,10 @@ export function CustomerDashboard() {
         />
       </div>
 
-      <div className="absolute bottom-[88px] inset-x-4 md:w-96 md:bottom-auto md:top-8 md:left-auto md:right-8 z-10 flex flex-col gap-4">
+      <div className="absolute inset-x-0 bottom-4 z-10 flex flex-col justify-end pointer-events-none pb-2 px-4 md:items-end md:justify-start md:top-8 md:bottom-auto">
         
         {activeTrip ? (
-           <div className="bg-white p-6 rounded-2xl shadow-2xl border-t-4 border-accent-gold border border-gray-100">
+           <div className="bg-white p-6 rounded-3xl shadow-2xl border-t-4 border-accent-gold border w-full md:w-96 pointer-events-auto flex-shrink-0 max-h-[75vh] overflow-y-auto">
              <div className="flex items-center justify-between mb-4">
                <h3 className="font-bold text-lg text-primary-dark">حالة الرحلة</h3>
                <span className="px-3 py-1 bg-accent-gold/10 text-accent-gold font-bold rounded-full text-xs">
@@ -472,45 +472,42 @@ export function CustomerDashboard() {
              )}
            </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 border-t-4 border-t-accent-gold">
-            <div className="p-5 bg-white border-b border-gray-100">
-              <h2 className="font-bold text-lg text-primary-dark flex items-center gap-2">
-                <span className="w-2 h-6 bg-accent-gold rounded-full inline-block block"></span>
-                وين تريد تروح؟
-              </h2>
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col pointer-events-auto shrink-0 w-full md:w-96">
+            <div className="p-3 flex justify-center border-b border-gray-50 flex-none shrink-0 touch-none cursor-grab active:cursor-grabbing">
+               <div className="w-12 h-1.5 bg-gray-200 rounded-full"></div>
             </div>
             
-            <div className="p-6 space-y-5">
+            <div className="px-6 py-4 space-y-4 max-h-[50vh] overflow-y-auto scrollbar-hide">
               {locationError && (
-                <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100">
+                <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100 shrink-0">
                   {locationError}
                 </div>
               )}
               
-              <div className="relative">
-                <div className={`absolute top-3 right-3 w-2 h-2 rounded-full mt-1 ${focusedField === 'pickup' ? 'bg-blue-500 shadow-md ring-2 ring-blue-200' : 'bg-gray-400'}`}></div>
+              <div className="relative shrink-0">
+                <div className={`absolute top-4 right-4 w-2 h-2 rounded-full mt-0 ${focusedField === 'pickup' ? 'bg-blue-500 shadow-md ring-2 ring-blue-200' : 'bg-gray-400'}`}></div>
                 <input 
                   type="text" 
                   value={pickupAddress}
                   onFocus={() => setFocusedField('pickup')}
                   onChange={e => handleAddressChange('pickup', e.target.value)}
                   placeholder={gettingLocation ? "جاري التحديد..." : "موقع الانطلاق..."}
-                  className={`w-full bg-gray-50 border rounded-xl py-3 pr-10 pl-4 focus:outline-none transition-all text-sm ${focusedField === 'pickup' ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}
+                  className={`w-full bg-gray-50 border rounded-2xl py-3.5 pr-10 pl-4 focus:outline-none transition-all text-sm font-bold ${focusedField === 'pickup' ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}
                 />
                 <button 
                   onClick={handleGetLocation}
-                  className="absolute top-2 left-2 p-1.5 text-gray-400 hover:text-primary-dark transition-colors"
+                  className="absolute top-2.5 left-2.5 p-1.5 bg-white shadow-sm border border-gray-100 rounded-xl text-blue-500 hover:text-blue-600 transition-colors"
                   title="تحديث موقعي"
                 >
                   <Navigation size={18} />
                 </button>
                 {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                  <div className="absolute z-20 w-full bg-white mt-1 border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-20 w-full bg-white mt-1 border border-gray-100 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                     {pickupSuggestions.map((place, i) => (
                       <div 
                         key={i} 
                         onClick={() => selectSuggestion('pickup', place)}
-                        className="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer text-sm truncate"
+                        className="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer text-sm truncate font-bold text-gray-700"
                       >
                         {place.display_name}
                       </div>
@@ -519,23 +516,23 @@ export function CustomerDashboard() {
                 )}
               </div>
 
-              <div className="relative">
-                <div className={`absolute top-3 right-3 w-2 h-2 rounded-full mt-1 ${focusedField === 'destination' ? 'bg-red-500 shadow-md ring-2 ring-red-200' : 'bg-gray-400'}`}></div>
+              <div className="relative shrink-0">
+                <div className={`absolute top-4 right-4 w-2 h-2 rounded-full mt-0 ${focusedField === 'destination' ? 'bg-red-500 shadow-md ring-2 ring-red-200' : 'bg-gray-400'}`}></div>
                 <input 
                   type="text" 
                   value={destinationAddress}
                   onFocus={() => setFocusedField('destination')}
                   onChange={e => handleAddressChange('destination', e.target.value)}
-                  placeholder="اكتب الوجهة..." 
-                  className={`w-full bg-gray-50 border rounded-xl py-3 pr-10 pl-4 focus:outline-none transition-all text-sm ${focusedField === 'destination' ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200'}`}
+                  placeholder="وين تريد تروح؟" 
+                  className={`w-full bg-gray-50 border rounded-2xl py-3.5 pr-10 pl-4 focus:outline-none transition-all text-sm font-bold ${focusedField === 'destination' ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200'}`}
                 />
                 {showDestinationSuggestions && destinationSuggestions.length > 0 && (
-                  <div className="absolute z-20 w-full bg-white mt-1 border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-20 w-full bg-white mt-1 border border-gray-100 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                     {destinationSuggestions.map((place, i) => (
                       <div 
                         key={i} 
                         onClick={() => selectSuggestion('destination', place)}
-                        className="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer text-sm truncate"
+                        className="p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer text-sm truncate font-bold text-gray-700"
                       >
                         {place.display_name}
                       </div>
@@ -545,23 +542,25 @@ export function CustomerDashboard() {
               </div>
 
               {estimatedPrice && (
-                <div className="mt-4 p-4 bg-accent-yellow/10 border border-accent-gold/30 rounded-xl flex items-center justify-between animate-fade-in transition-all">
+                <div className="p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-accent-gold/20 flex items-center justify-center text-primary-dark">
-                      <span className="font-bold text-sm">IQD</span>
+                    <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-dark">
+                      <span className="font-bold text-xs mt-1">IQD</span>
                     </div>
-                    <span className="text-gray-700 font-medium text-sm">السعر التقديري</span>
+                    <span className="text-gray-500 font-bold text-xs">السعر التقديري</span>
                   </div>
-                  <div className="text-2xl font-black text-primary-dark tracking-tight">
-                    {estimatedPrice.toLocaleString('en-US')} <span className="text-sm text-gray-500 font-bold">د.ع</span>
+                  <div className="text-xl font-black text-primary-dark tracking-tight">
+                    {estimatedPrice.toLocaleString('en-US')} <span className="text-xs text-gray-500 font-bold">د.ع</span>
                   </div>
                 </div>
               )}
-              
+            </div>
+            
+            <div className="p-4 pt-0 shrink-0 mt-auto bg-white rounded-b-3xl">
               <button 
                 onClick={requestTrip}
                 disabled={requestingTrip || !pickupAddress || !destinationAddress}
-                className="w-full bg-accent-yellow hover:bg-[#F2BD23] disabled:opacity-50 disabled:hover:bg-accent-yellow text-primary-dark font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95 mt-4"
+                className="w-full bg-primary-dark hover:bg-black text-white disabled:opacity-50 disabled:hover:bg-primary-dark font-bold py-4 rounded-xl shadow-xl transition-all transform active:scale-95 text-lg"
               >
                 {requestingTrip ? 'جاري الطلب...' : 'احجز رحلتك الآن'}
               </button>

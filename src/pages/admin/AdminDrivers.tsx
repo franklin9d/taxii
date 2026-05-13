@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, doc, updateDoc, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { X, CheckCircle, Car, User, Phone, MapPin, StopCircle } from 'lucide-react';
+import { X, CheckCircle, Car, User, Phone, MapPin, StopCircle, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function AdminDrivers() {
@@ -17,9 +17,6 @@ export function AdminDrivers() {
       collection(db, 'users'),
       where('status', '==', activeTab) // Make sure we properly query by status. 
     );
-    
-    // Note: some may not have .status if they are simple customers.
-    // However, the rule is any applied driver will have status = 'pending_approval' or 'active' or 'rejected' or 'suspended'.
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
@@ -101,11 +98,7 @@ export function AdminDrivers() {
             <div key={driver.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col hover:shadow-md transition-shadow">
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
-                  {driver.documents?.personalPhotoUrl ? (
-                    <img src={driver.documents.personalPhotoUrl} alt="personal" className="w-full h-full object-cover" />
-                  ) : (
-                    <User size={24} className="text-gray-400" />
-                  )}
+                   <User size={24} className="text-gray-400" />
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-800 text-lg line-clamp-1">{driver.name || 'بدون اسم'}</h3>
@@ -118,7 +111,7 @@ export function AdminDrivers() {
               <div className="space-y-2 mb-6 flex-1">
                 <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-2 rounded-lg">
                   <Car size={16} className="text-gray-400" />
-                  <span>{driver.driverInfo?.carType} - {driver.driverInfo?.carModel}</span>
+                  <span>{driver.driverInfo?.carType} - {driver.driverInfo?.carModel} ({driver.driverInfo?.carColor || 'غير محدد اللون'})</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-2 rounded-lg">
                   <div className="w-4 h-4 bg-gray-200 rounded text-[8px] flex items-center justify-center font-bold">ق</div>
@@ -134,7 +127,7 @@ export function AdminDrivers() {
                 onClick={() => setSelectedDriver(driver)}
                 className="w-full py-3 bg-gray-50 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors"
               >
-                عرض المستمسكات والإدارة
+                عرض الإدارة والتفاصيل
               </button>
             </div>
           ))}
@@ -145,7 +138,7 @@ export function AdminDrivers() {
       {selectedDriver && !showRejectModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedDriver(null)}></div>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col relative z-10 animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col relative z-10 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-2xl font-bold text-primary-dark">تفاصيل الكابتن - {selectedDriver.name}</h2>
               <button onClick={() => setSelectedDriver(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 text-gray-600">
@@ -153,16 +146,54 @@ export function AdminDrivers() {
               </button>
             </div>
 
-            <div className="overflow-y-auto p-6 flex-1 bg-gray-50">
-               {/* Documents Grid */}
-               <h3 className="font-bold text-gray-800 mb-4 text-lg">المستمسكات המرفقة</h3>
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                 <DocCard label="الصورة الشخصية" url={selectedDriver.documents?.personalPhotoUrl} />
-                 <DocCard label="البطاقة الوطنية" url={selectedDriver.documents?.nationalIdUrl} />
-                 <DocCard label="إجازة السوق" url={selectedDriver.documents?.drivingLicenseUrl} />
-                 <DocCard label="سنوية السيارة" url={selectedDriver.documents?.carRegistrationUrl} />
-                 <DocCard label="السيارة من الأمام" url={selectedDriver.documents?.carFrontPhotoUrl} />
-                 <DocCard label="السيارة من الخلف" url={selectedDriver.documents?.carBackPhotoUrl} />
+            <div className="overflow-y-auto p-6 flex-1 bg-gray-50 space-y-4">
+               
+               <div className="flex items-center justify-between bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100">
+                  <div className="flex items-center gap-3">
+                     <Send className="w-6 h-6 text-blue-500" />
+                     <p className="font-bold text-sm">تم إرسال المستمسكات إلى Telegram</p>
+                  </div>
+                  <CheckCircle className="text-blue-500 w-5 h-5" />
+               </div>
+
+               <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3 mt-4">
+                  <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-2 mb-3">معلومات الكابتن</h3>
+                  <div className="flex justify-between items-center text-sm">
+                     <span className="text-gray-500">الاسم</span>
+                     <span className="font-bold text-gray-800">{selectedDriver.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                     <span className="text-gray-500">رقم الهاتف</span>
+                     <span className="font-bold text-gray-800 dir-ltr">{selectedDriver.phone}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                     <span className="text-gray-500">المنطقة</span>
+                     <span className="font-bold text-gray-800">{selectedDriver.driverInfo?.governorate || 'غير محدد'}</span>
+                  </div>
+               </div>
+
+               <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3 mt-4">
+                  <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-2 mb-3">معلومات السيارة</h3>
+                  <div className="flex justify-between items-center text-sm">
+                     <span className="text-gray-500">النوع</span>
+                     <span className="font-bold text-gray-800">{selectedDriver.driverInfo?.carType}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                     <span className="text-gray-500">الموديل / السنة</span>
+                     <span className="font-bold text-gray-800">{selectedDriver.driverInfo?.carModel}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                     <span className="text-gray-500">اللون</span>
+                     <span className="font-bold text-gray-800">{selectedDriver.driverInfo?.carColor}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                     <span className="text-gray-500">عدد المقاعد</span>
+                     <span className="font-bold text-gray-800">{selectedDriver.driverInfo?.seats || '4'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                     <span className="text-gray-500">رقم اللوحة</span>
+                     <span className="font-bold text-gray-800">{selectedDriver.driverInfo?.carNumber}</span>
+                  </div>
                </div>
 
                {selectedDriver.rejectionReason && selectedDriver.status === 'rejected' && (
@@ -214,7 +245,7 @@ export function AdminDrivers() {
             <textarea 
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
-              placeholder="اكتب سبب الرفض هنا ليتم إشعاره به (مثال: الصورة الشخصية غير واضحة)..."
+              placeholder="اكتب سبب الرفض هنا ليتم إشعاره به (مثال: الصورة غير واضحة)..."
               className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 min-h-[120px] focus:ring-2 focus:ring-red-400 outline-none mb-6"
             ></textarea>
             
@@ -235,26 +266,6 @@ export function AdminDrivers() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function DocCard({ label, url }: { label: string, url: string | undefined }) {
-  if (!url) {
-    return (
-      <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center justify-center text-center h-48 opacity-50">
-        <X className="w-8 h-8 text-gray-300 mb-2" />
-        <span className="text-sm font-bold text-gray-400">{label} (غير متوفر)</span>
-      </div>
-    );
-  }
-  return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-2 flex flex-col items-center">
-      <a href={url} target="_blank" rel="noreferrer" className="w-full h-40 bg-gray-100 rounded-xl overflow-hidden mb-3 block group relative">
-        <img src={url} alt={label} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
-      </a>
-      <span className="text-sm font-bold text-gray-700 pb-1">{label}</span>
     </div>
   );
 }
