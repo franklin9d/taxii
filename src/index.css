@@ -10,6 +10,13 @@
   --color-luxury-black: var(--black);
 
   --font-sans: "Cairo", "Tajawal", "IBM Plex Sans Arabic", sans-serif;
+  
+  --animate-shimmer: shimmer 2s infinite linear;
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
 }
 
 :root {

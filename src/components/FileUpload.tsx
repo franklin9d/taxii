@@ -3,6 +3,7 @@ import { storage } from '../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { Upload, X, Check, Image as ImageIcon, File as FileIcon, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface FileUploadProps {
   label: string;
@@ -37,9 +38,14 @@ export function FileUpload({ label, onUploadComplete, required = false }: FileUp
         const options = {
           maxSizeMB: 1,
           maxWidthOrHeight: 1920,
-          useWebWorker: true
+          useWebWorker: false // Important: web workers can fail silently inside iframes
         };
-        finalFile = await imageCompression(fileToUpload, options);
+        try {
+          finalFile = await imageCompression(fileToUpload, options);
+        } catch (compressErr) {
+          console.warn("Compression failed, using original file", compressErr);
+          finalFile = fileToUpload;
+        }
       } else if (fileToUpload.size > 5 * 1024 * 1024) {
         throw new Error('حجم الملف كبير جداً (الحد الأقصى 5 ميجابايت)');
       }
@@ -56,9 +62,10 @@ export function FileUpload({ label, onUploadComplete, required = false }: FileUp
           setProgress(progress);
         }, 
         (error) => {
-          console.error(error);
-          setError('فشل رفع الملف. يرجى المحاولة مرة أخرى.');
+          console.error("Storage upload error:", error);
+          setError('فشل رفع الصورة، تحقق من الاتصال وقواعد Storage وحاول مرة أخرى');
           setIsUploading(false);
+          toast.error('فشل رفع الصورة، حاول مرة أخرى');
         }, 
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);

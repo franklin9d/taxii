@@ -22,7 +22,7 @@ export function AdminDrivers() {
     // However, the rule is any applied driver will have status = 'pending_approval' or 'active' or 'rejected' or 'suspended'.
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
       setDrivers(data.filter(d => d.role !== 'admin' && d.driverInfo));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
     

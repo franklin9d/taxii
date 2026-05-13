@@ -41,6 +41,8 @@ export function DriverDashboard() {
     }
   }, [isOnline, myActiveTrip]);
 
+  const [activeCustomerInfo, setActiveCustomerInfo] = useState<any>(null);
+
   useEffect(() => {
     if (!userData?.id) return;
     const q = query(
@@ -61,6 +63,36 @@ export function DriverDashboard() {
     
     return () => unsubscribe();
   }, [userData]);
+
+  useEffect(() => {
+    if (myActiveTrip?.customerId) {
+       const unsubscribe = onSnapshot(doc(db, 'users', myActiveTrip.customerId), (snapshot) => {
+         if (snapshot.exists()) {
+           setActiveCustomerInfo(snapshot.data());
+         }
+       }, (error) => handleFirestoreError(error, OperationType.GET, `users/${myActiveTrip.customerId}`));
+       return () => unsubscribe();
+    } else {
+       setActiveCustomerInfo(null);
+    }
+  }, [myActiveTrip?.customerId]);
+
+  const cancelTripAsDriver = async () => {
+    if (!myActiveTrip) return;
+    if (confirm("هل أنت متأكد من إلغاء الرحلة؟")) {
+      try {
+        await updateDoc(doc(db, 'trips', myActiveTrip.id), {
+          status: 'cancelled',
+          cancelledBy: 'driver',
+          cancelledAt: Date.now()
+        });
+        toast.success("تم إلغاء الرحلة بنجاح");
+        setMyActiveTrip(null);
+      } catch (err) {
+        toast.error("فشل إلغاء الرحلة");
+      }
+    }
+  };
 
   useEffect(() => {
     if (isOnline || myActiveTrip) {
@@ -187,6 +219,21 @@ export function DriverDashboard() {
                </div>
              </div>
 
+             {activeCustomerInfo && (
+               <div className="flex border-t border-gray-100 pt-4 mt-2 mb-4 items-center gap-3">
+                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-bold text-gray-500">
+                   {activeCustomerInfo.name ? activeCustomerInfo.name.substring(0, 1) : 'ع'}
+                 </div>
+                 <div className="flex-1">
+                   <p className="font-bold text-primary-dark">{activeCustomerInfo.name || 'عميل'}</p>
+                   <p className="text-xs text-gray-500 dir-ltr text-right font-bold mt-1 max-w-[120px]">{activeCustomerInfo.phone}</p>
+                 </div>
+                 <a href={`tel:${activeCustomerInfo.phone}`} className="h-10 px-4 bg-green-50 text-green-600 rounded-xl font-bold flex items-center justify-center shadow-sm">
+                   اتصال
+                 </a>
+               </div>
+             )}
+
              <div className="grid grid-cols-2 gap-3 mb-6">
                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100/50 text-center">
                  <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">السعر</p>
@@ -209,6 +256,12 @@ export function DriverDashboard() {
              )}
              {myActiveTrip.status === 'trip_started' && (
                <button onClick={() => updateTripStatus('completed')} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">إنهاء الرحلة</button>
+             )}
+             
+             {myActiveTrip.status !== 'trip_started' && myActiveTrip.status !== 'completed' && (
+               <button onClick={cancelTripAsDriver} className="w-full mt-3 bg-red-50 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition-colors">
+                 إلغاء الرحلة
+               </button>
              )}
           </div>
         </div>

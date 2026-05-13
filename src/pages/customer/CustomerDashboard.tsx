@@ -39,19 +39,21 @@ export function CustomerDashboard() {
     // Seed some mock drivers for demonstration purposes
     const seedDrivers = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'drivers'), limit(1)));
+        const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'driver'), limit(1)));
         if (snap.empty) {
-          await addDoc(collection(db, 'drivers'), {
+          await addDoc(collection(db, 'users'), {
             name: 'علي أحمد',
-            location: 'حي التأميم',
-            carModel: 'تويوتا كامري 2020',
-            isOnline: true
-          });
-          await addDoc(collection(db, 'drivers'), {
-            name: 'محمد جاسم',
-            location: 'حي السلام',
-            carModel: 'هونداي إلنترا 2019',
-            isOnline: true
+            phone: '07701234567',
+            role: 'driver',
+            status: 'active',
+            driverApproved: true,
+            isOnline: true,
+            driverInfo: {
+              carType: 'صالون',
+              carModel: 'تويوتا كامري 2020',
+              carColor: 'أبيض',
+              carNumber: 'بغداد 12345 ق'
+            }
           });
         }
       } catch (e) {
@@ -65,7 +67,8 @@ export function CustomerDashboard() {
   useEffect(() => {
     if (activeTrip?.status === 'searching_for_driver') {
       const q = query(
-        collection(db, 'drivers'), 
+        collection(db, 'users'), 
+        where('role', '==', 'driver'),
         where('isOnline', '==', true)
       );
       
@@ -73,7 +76,7 @@ export function CustomerDashboard() {
         const driversData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setAvailableDrivers(driversData);
       }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'drivers');
+        handleFirestoreError(error, OperationType.LIST, 'users');
       });
 
       return () => unsubscribe();
@@ -124,24 +127,46 @@ export function CustomerDashboard() {
     return () => unsubscribe();
   }, [userData]);
 
-  // Listen to assigned driver location
+  const [assignedDriverInfo, setAssignedDriverInfo] = useState<any>(null);
+
+  // Listen to assigned driver location + info
   useEffect(() => {
     if (activeTrip && activeTrip.driverId) {
-      const unsubscribe = onSnapshot(doc(db, 'drivers', activeTrip.driverId), (snapshot) => {
+      const unsubscribe = onSnapshot(doc(db, 'users', activeTrip.driverId), (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
+          setAssignedDriverInfo(data);
           if (typeof data.currentLat === 'number' && typeof data.currentLng === 'number') {
             setDriverLocation([data.currentLat, data.currentLng]);
           }
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, `drivers/${activeTrip.driverId}`);
+        handleFirestoreError(error, OperationType.GET, `users/${activeTrip.driverId}`);
       });
       return () => unsubscribe();
     } else {
       setDriverLocation(null);
+      setAssignedDriverInfo(null);
     }
   }, [activeTrip?.driverId]);
+
+  const cancelTrip = async () => {
+    if (!activeTrip) return;
+    if (confirm("هل أنت متأكد من إلغاء الطلب؟")) {
+      try {
+        await updateDoc(doc(db, 'trips', activeTrip.id), {
+          status: 'cancelled',
+          cancelledBy: 'rider',
+          cancelledAt: Date.now()
+        });
+        toast.success("تم إلغاء الطلب بنجاح");
+        setActiveTrip(null);
+      } catch (err) {
+        console.error(err);
+        toast.error("حدث خطأ أثناء إلغاء الرحلة.");
+      }
+    }
+  };
 
   useEffect(() => {
     if (destinationAddress.length >= 3) {
@@ -270,10 +295,38 @@ export function CustomerDashboard() {
     }
   };
 
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [customerPhone, setCustomerPhone] = useState(userData?.phone || '');
+  const [savingPhone, setSavingPhone] = useState(false);
+
+  const handleSavePhone = async () => {
+    if (!customerPhone || customerPhone.length < 10) {
+      toast.error("يرجى إدخال رقم هاتف صحيح");
+      return;
+    }
+    if (!userData?.id) return;
+    setSavingPhone(true);
+    try {
+      await updateDoc(doc(db, 'users', userData.id), {
+        phone: customerPhone
+      });
+      setShowPhoneModal(false);
+      requestTrip(); // proceed with trip
+    } catch (e) {
+      toast.error("فشل حفظ الرقم، حاول مرة أخرى");
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
   const requestTrip = async () => {
     if (!userData) return;
     if (!pickupAddress || !destinationAddress) {
       toast.error("الرجاء تحديد موقع الانطلاق والوجهة أولاً");
+      return;
+    }
+    if (!userData.phone && !customerPhone) {
+      setShowPhoneModal(true);
       return;
     }
     
@@ -376,7 +429,45 @@ export function CustomerDashboard() {
                    </div>
                  )}
 
-                 <button className="mt-6 text-red-500 text-sm hover:text-red-700 font-bold underline transition-colors self-center">إلغاء الطلب</button>
+                 <button onClick={cancelTrip} className="mt-6 text-red-500 text-sm hover:text-red-700 font-bold underline transition-colors self-center">إلغاء الطلب</button>
+               </div>
+             )}
+
+             {activeTrip.status !== 'searching_for_driver' && assignedDriverInfo && (
+               <div className="flex flex-col gap-4 mt-4 border-t border-gray-100 pt-4">
+                 <div className="flex items-center gap-4">
+                   <div className="w-16 h-16 bg-gray-100 rounded-full overflow-hidden flex items-center justify-center border-2 border-accent-gold shadow-sm">
+                     {assignedDriverInfo.documents?.personalPhotoUrl ? (
+                        <img src={assignedDriverInfo.documents.personalPhotoUrl} alt="الكابتن" className="w-full h-full object-cover" />
+                     ) : (
+                        <span className="text-2xl text-gray-400">{assignedDriverInfo.name?.substring(0, 1) || 'ك'}</span>
+                     )}
+                   </div>
+                   <div className="flex flex-col">
+                     <p className="font-bold text-primary-dark text-lg">{assignedDriverInfo.name || 'سائق غير معروف'}</p>
+                     <p className="text-xs text-gray-500 font-bold mt-1 dir-ltr text-right">{assignedDriverInfo.phone}</p>
+                     {assignedDriverInfo.driverInfo?.carModel && (
+                       <p className="text-xs text-gray-500 mt-1">السيارة: {assignedDriverInfo.driverInfo.carModel} - {assignedDriverInfo.driverInfo.carColor || ''}</p>
+                     )}
+                     {assignedDriverInfo.driverInfo?.carNumber && (
+                       <div className="inline-flex mt-2 items-center gap-2 text-xs font-bold bg-gray-100 px-3 py-1.5 rounded-lg text-gray-700 w-fit">
+                         <span className="w-3 h-3 bg-gray-300 rounded-sm text-[8px] flex items-center justify-center">ق</span>
+                         <span className="dir-ltr">{assignedDriverInfo.driverInfo.carNumber}</span>
+                       </div>
+                     )}
+                   </div>
+                 </div>
+                 
+                 <div className="flex gap-2 mt-2">
+                   <a href={`tel:${assignedDriverInfo.phone}`} className="flex-1 bg-green-50 text-green-600 font-bold py-3 rounded-xl hover:bg-green-100 transition-colors text-center text-sm">
+                     اتصال بالكابتن
+                   </a>
+                   {['driver_assigned', 'driver_on_way'].includes(activeTrip.status) && (
+                     <button onClick={cancelTrip} className="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition-colors text-center text-sm">
+                       إلغاء الطلب
+                     </button>
+                   )}
+                 </div>
                </div>
              )}
            </div>
@@ -478,6 +569,37 @@ export function CustomerDashboard() {
           </div>
         )}
       </div>
+
+      {showPhoneModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 fade-in duration-200">
+            <h3 className="font-bold text-xl text-primary-dark mb-2">رقم الهاتف مطلوب</h3>
+            <p className="text-sm text-gray-500 mb-6">يرجى إضافة رقم هاتفك ليتمكن الكابتن من التواصل معك عند الوصول.</p>
+            <input 
+              type="tel" 
+              value={customerPhone}
+              onChange={e => setCustomerPhone(e.target.value)}
+              placeholder="07X XXXX XXXX" 
+              className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-4 px-4 focus:ring-2 focus:ring-accent-gold outline-none text-left dir-ltr mb-6"
+            />
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setShowPhoneModal(false)}
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3.5 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                إلغاء
+              </button>
+              <button 
+                onClick={handleSavePhone}
+                disabled={savingPhone}
+                className="flex-1 bg-accent-yellow text-primary-dark font-bold py-3.5 rounded-xl hover:bg-[#F2BD23] transition-colors"
+              >
+                {savingPhone ? 'جاري الحفظ...' : 'حفظ ومتابعة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

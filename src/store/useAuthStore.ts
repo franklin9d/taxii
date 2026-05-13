@@ -79,7 +79,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/popup-closed-by-user') {
-        toast.error('تم إلغاء تسجيل الدخول، حاول مرة ثانية.');
+        toast.error('تم إلغاء العملية. إذا لم تفتح نافذة الدخول، يرجى السماح بالنوافذ المنبثقة (Popups) في متصفحك.', { duration: 5000 });
+      } else if (error.code === 'auth/popup-blocked') {
+        toast.error('تم حظر نافذة تسجيل الدخول! يرجى السماح بالنوافذ المنبثقة لهذا الموقع.', { duration: 5000 });
       } else if (error.code === 'auth/unauthorized-domain') {
         console.error('Unauthorized domain. Please add this domain to Firebase Auth Settings.');
         toast.error('حدث خطأ بالاتصال، يرجى تحديث الصفحة والمحاولة أُخرى.');
