@@ -5,7 +5,7 @@ export function DriverProfile() {
   const { userData, logout } = useAuthStore();
 
   return (
-    <div className="absolute inset-0 p-4 md:p-8 max-w-xl mx-auto pb-24 overflow-y-auto">
+    <div className="absolute inset-0 p-4 md:p-8 max-w-xl mx-auto pb-[100px] overflow-y-auto">
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
         <div className="bg-primary-dark p-8 text-center relative">
           <div className="absolute inset-0 babylonian-pattern opacity-10"></div>

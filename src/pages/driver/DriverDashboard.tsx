@@ -5,6 +5,7 @@ import { MapComponent, driverIcon } from '../../components/MapComponent';
 import { collection, query, where, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { MapPin, Navigation, Map } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const DEFAULT_CENTER: [number, number] = [33.6744, 44.3800];
 
@@ -119,9 +120,10 @@ export function DriverDashboard() {
         status: 'driver_assigned',
         acceptedAt: Date.now()
       });
+      toast.success("تم قبول الرحلة بنجاح!");
     } catch (error) {
       console.error(error);
-      alert("تعذر قبول الرحلة - قد تكون قبلت من سائق آخر");
+      toast.error("تعذر قبول الرحلة - قد تكون حُزغت من قبل سائق آخر");
     }
   };
 
@@ -133,8 +135,10 @@ export function DriverDashboard() {
         ...(status === 'trip_started' ? { startedAt: Date.now() } : {}),
         ...(status === 'completed' ? { completedAt: Date.now() } : {})
       });
+      if (status === 'completed') toast.success('تم إنهاء الرحلة بنجاح!');
     } catch (error) {
       console.error(error);
+      toast.error('حدث خطأ أثناء تحديث حالة الرحلة.');
     }
   };
 
@@ -149,7 +153,7 @@ export function DriverDashboard() {
       </div>
 
       {myActiveTrip ? (
-        <div className="absolute bottom-4 inset-x-4 md:w-96 md:bottom-auto md:top-8 md:left-auto md:right-8 z-10">
+        <div className="absolute bottom-[88px] inset-x-4 md:w-96 md:bottom-auto md:top-8 md:left-auto md:right-8 z-10">
           <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-t-4 border-accent-gold border-x border-b border-gray-100 p-6">
              <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-lg text-primary-dark">الرحلة الحالية</h3>
@@ -220,7 +224,7 @@ export function DriverDashboard() {
             </button>
           </div>
 
-          <div className="absolute bottom-4 inset-x-4 md:w-96 md:bottom-auto md:top-20 md:left-4 md:right-auto z-10 flex flex-col gap-4 max-h-[70vh] overflow-y-auto pb-8">
+          <div className="absolute bottom-[88px] inset-x-4 md:w-96 md:bottom-auto md:top-20 md:left-4 md:right-auto z-10 flex flex-col gap-4 max-h-[60vh] overflow-y-auto pb-4">
             {!isOnline ? (
               <div className="bg-white rounded-2xl shadow-2xl border-t-4 border-gray-300 p-8 text-center">
                 <div className="w-20 h-20 bg-gray-50 border border-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">

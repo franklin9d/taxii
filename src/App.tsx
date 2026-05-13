@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import { ErrorBoundary } from 'react-error-boundary';
+import { Toaster } from 'react-hot-toast';
 import { LandingPage } from './pages/LandingPage';
 import { CustomerLayout } from './components/layout/CustomerLayout';
 import { DriverLayout } from './components/layout/DriverLayout';
@@ -19,6 +20,10 @@ import { DriverProfile } from './pages/driver/DriverProfile';
 
 // Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { AdminDrivers } from './pages/admin/AdminDrivers';
+import { AdminCustomers } from './pages/admin/AdminCustomers';
+import { AdminRides } from './pages/admin/AdminRides';
+import { AdminSettings } from './pages/admin/AdminSettings';
 
 function ErrorFallback({ error, resetErrorBoundary }: any) {
   return (
@@ -53,6 +58,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: ReactNode, allow
 export default function App() {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <Toaster position="top-center" toastOptions={{ duration: 4000, style: { fontFamily: 'inherit' } }} />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -78,6 +84,11 @@ export default function App() {
           {/* Admin Routes */}
           <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminLayout /></ProtectedRoute>}>
             <Route index element={<AdminDashboard />} />
+            <Route path="drivers" element={<AdminDrivers />} />
+            <Route path="customers" element={<AdminCustomers />} />
+            <Route path="rides" element={<AdminRides />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="notifications" element={<div className="p-16 text-center text-gray-500 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center"><div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4"><span className="text-4xl">🔔</span></div><p className="font-bold text-lg mb-2">نظام الإشعارات قيد التطوير</p><p>سيتم إضافة ميزة إرسال الإشعارات المباشرة للسائقين والعملاء قريباً</p></div>} />
           </Route>
         </Routes>
       </BrowserRouter>

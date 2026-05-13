@@ -88,23 +88,26 @@ export function FileUpload({ label, onUploadComplete, required = false }: FileUp
   };
 
   return (
-    <div className="mb-4">
+    <div className="mb-4 relative">
+      {!isUploading && !url && (
+         <label className="absolute inset-0 z-10 cursor-pointer">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*,.pdf"
+              onChange={handleFileChange}
+            />
+         </label>
+      )}
       <div 
-        onClick={() => !isUploading && !url && fileInputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors relative overflow-hidden
           ${url ? 'border-green-500 bg-green-50' : 
             error ? 'border-red-400 bg-red-50' : 
             isUploading ? 'border-accent-gold bg-accent-gold/5' : 
-            'border-gray-300 hover:bg-gray-50 cursor-pointer'}
+            'border-gray-300 hover:bg-gray-50'}
         `}
       >
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          className="hidden" 
-          accept="image/*,.pdf"
-          onChange={handleFileChange}
-        />
         
         {isUploading && (
           <div className="absolute bottom-0 left-0 h-1 bg-accent-gold transition-all duration-300" style={{ width: `${progress}%` }}></div>

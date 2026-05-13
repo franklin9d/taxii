@@ -1,19 +1,29 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { FileText, Upload, CheckCircle } from 'lucide-react';
+import { FileText, CheckCircle, ChevronLeft, ChevronRight, User, Car } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { FileUpload } from '../../components/FileUpload';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 export function DriverRegister() {
-  const { userData } = useAuthStore();
+  const { userData, logout } = useAuthStore();
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  // Step 1: Personal
+  const [phone, setPhone] = useState(userData?.phone || '');
+  const [governorate, setGovernorate] = useState('الطارمية');
+
+  // Step 2: Car Info
   const [carType, setCarType] = useState('صالون');
   const [carModel, setCarModel] = useState('');
   const [carColor, setCarColor] = useState('');
   const [carNumber, setCarNumber] = useState('');
-  const [governorate, setGovernorate] = useState('بغداد');
-  
-  // Documents
+
+  // Step 3: Documents
   const [nationalIdUrl, setNationalIdUrl] = useState('');
   const [drivingLicenseUrl, setDrivingLicenseUrl] = useState('');
   const [carRegistrationUrl, setCarRegistrationUrl] = useState('');
@@ -21,23 +31,31 @@ export function DriverRegister() {
   const [carBackPhotoUrl, setCarBackPhotoUrl] = useState('');
   const [personalPhotoUrl, setPersonalPhotoUrl] = useState('');
 
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [errorStatus, setErrorStatus] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userData?.id) return;
-    
-    if (!nationalIdUrl || !drivingLicenseUrl || !carRegistrationUrl || !carFrontPhotoUrl || !carBackPhotoUrl || !personalPhotoUrl) {
-      setErrorStatus('يرجى رفع جميع المستمسكات المطلوبة قبل إرسال الطلب.');
-      return;
+  const nextStep = () => {
+    if (step === 1) {
+      if (!phone) { toast.error('يرجى إدخال رقم الهاتف'); return; }
+      setStep(2);
+    } else if (step === 2) {
+      if (!carModel) { toast.error('يرجى إدخال موديل السيارة'); return; }
+      if (!carColor) { toast.error('يرجى إدخال لون السيارة'); return; }
+      if (!carNumber) { toast.error('يرجى إدخال رقم اللوحة'); return; }
+      setStep(3);
+    } else if (step === 3) {
+      if (!nationalIdUrl || !drivingLicenseUrl || !carRegistrationUrl || !carFrontPhotoUrl || !carBackPhotoUrl || !personalPhotoUrl) {
+         toast.error('يرجى رفع جميع المستمسكات المطلوبة'); return;
+      }
+      setStep(4);
     }
-    
+  };
+
+  const prevStep = () => setStep(step - 1);
+
+  const handleSubmit = async () => {
+    if (!userData?.id) return;
     setLoading(true);
-    setErrorStatus(null);
     try {
       await updateDoc(doc(db, 'users', userData.id), {
+        phone,
         driverInfo: {
           carType,
           carModel,
@@ -53,55 +71,115 @@ export function DriverRegister() {
           carBackPhotoUrl,
           personalPhotoUrl
         },
-        driverApproved: false, // Wait for admin to approve
+        driverApproved: false,
         status: 'pending_approval'
       });
-      setSubmitted(true);
+      toast.success('تم إرسال طلبك للمراجعة بنجاح!');
+      // Assuming layout or dashboard will handle the `pending_approval` status
     } catch (e: any) {
       console.error(e);
-      setErrorStatus(e.message || 'حدث خطأ. حاول مرة أخرى.');
+      toast.error('حدث خطأ. حاول مرة أخرى.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (submitted || userData?.status === 'pending_approval') {
+  if (userData?.status === 'pending_approval') {
     return (
-      <div className="absolute inset-0 p-6 max-w-2xl mx-auto text-center flex flex-col justify-center">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle className="w-10 h-10 text-green-500" />
+      <div className="absolute inset-0 p-6 md:max-w-2xl mx-auto flex flex-col justify-center items-center text-center bg-bg-light pb-24">
+        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white">
+          <FileText className="w-10 h-10 text-blue-500" />
         </div>
-        <h2 className="text-2xl font-bold text-primary-dark mb-2">تم استلام طلبك بنجاح!</h2>
-        <p className="text-gray-500">جاري مراجعة طلبك من قبل الإدارة. سيتم إشعارك فور الموافقة على حسابك لتبدأ باستقبال الطلبات.</p>
+        <h2 className="text-2xl font-bold text-primary-dark mb-3">طلبك قيد المراجعة</h2>
+        <p className="text-gray-500 mb-8 max-w-sm leading-relaxed">
+          سيتم مراجعة بياناتك ومستمسكاتك من قبل الإدارة وإشعارك عند الموافقة لتكون جاهزاً لاستقبال الطلبات.
+        </p>
+        <button onClick={() => navigate('/driver/profile')} className="px-6 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
+          تصفح حسابي
+        </button>
       </div>
     );
   }
-  
-  return (
-    <div className="absolute inset-0 p-6 w-full max-w-2xl mx-auto pb-24 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-accent-gold/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <FileText className="w-8 h-8 text-accent-gold" />
-          </div>
-          <h2 className="text-2xl font-bold text-primary-dark">إكمال التسجيل ككابتن</h2>
-          <p className="text-gray-500 mt-2">يرجى رفع المستمسكات المطلوبة للموافقة على حسابك</p>
+
+  if (userData?.status === 'suspended') {
+     return (
+      <div className="absolute inset-0 p-6 md:max-w-2xl mx-auto flex flex-col justify-center items-center text-center bg-bg-light pb-24">
+        <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white">
+          <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
         </div>
-        
-        {errorStatus && (
-          <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg text-sm font-bold">
-            {errorStatus}
+        <h2 className="text-2xl font-bold text-red-600 mb-3">الحساب موقوف</h2>
+        <p className="text-gray-500 mb-8 max-w-sm leading-relaxed">
+          تم إيقاف حسابك من قبل الإدارة. يرجى التواصل مع الدعم الفني للمزيد من التفاصيل.
+        </p>
+        <button onClick={logout} className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors">
+          تسجيل الخروج
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0 w-full md:max-w-xl mx-auto bg-bg-light flex flex-col">
+      <div className="flex-none p-6 pb-2">
+        <h2 className="text-2xl font-bold text-primary-dark mb-4">إكمال التسجيل</h2>
+        <div className="flex items-center justify-between relative mb-6">
+          <div className="absolute left-0 right-0 top-1/2 h-1 bg-gray-200 -z-10 rounded-full transform -translate-y-1/2"></div>
+          <div className="absolute right-0 top-1/2 h-1 bg-accent-gold -z-10 rounded-full transform -translate-y-1/2 transition-all duration-300" style={{ width: `${(step - 1) * 33.33}%` }}></div>
+          
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${step >= i ? 'bg-accent-gold text-white shadow-md' : 'bg-gray-200 text-gray-500'}`}>
+              {step > i ? <CheckCircle size={16} /> : i}
+            </div>
+          ))}
+        </div>
+        <p className="text-gray-500 text-sm font-bold">الخطوة {step} من 4</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 pb-24">
+        {step === 1 && (
+          <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
+            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-6">
+              <User className="text-accent-gold" /> معلومات شخصية
+            </h3>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">رقم الهاتف <span className="text-red-500">*</span></label>
+              <input 
+                type="tel" 
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="07X XXXX XXXX" 
+                className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none text-left dir-ltr" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">المنطقة</label>
+              <select 
+                 value={governorate}
+                 onChange={e => setGovernorate(e.target.value)}
+                 className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none"
+              >
+                 <option>الطارمية</option>
+                 <option>المشاهدة</option>
+                 <option>التاجي</option>
+                 <option>بغداد</option>
+              </select>
+            </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {step === 2 && (
+          <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
+            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-6">
+              <Car className="text-accent-gold" /> تفاصيل المركبة
+            </h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">نوع السيارة</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">نوع السيارة <span className="text-red-500">*</span></label>
               <select 
                 value={carType}
                 onChange={e => setCarType(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold focus:border-transparent outline-none"
+                className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none"
               >
                 <option>صالون</option>
                 <option>عالية</option>
@@ -109,78 +187,110 @@ export function DriverRegister() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">موديل/سنة الصنع</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">موديل/سنة الصنع <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
-                required
                 value={carModel}
                 onChange={e => setCarModel(e.target.value)}
-                placeholder="مثال: 2021" 
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none" 
+                placeholder="مثال: سنتفاي 2021" 
+                className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none" 
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">لون السيارة</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">لون السيارة <span className="text-red-500">*</span></label>
               <input 
                  type="text" 
-                 required
                  value={carColor}
                  onChange={e => setCarColor(e.target.value)}
                  placeholder="أبيض، أسود..." 
-                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none" 
+                 className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none" 
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">رقم اللوحة</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">رقم اللوحة <span className="text-red-500">*</span></label>
               <input 
                  type="text" 
-                 required
                  value={carNumber}
                  onChange={e => setCarNumber(e.target.value)}
                  placeholder="مثال: بغداد 12345 ق" 
-                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none" 
+                 className="w-full bg-white border border-gray-200 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-accent-gold outline-none" 
               />
             </div>
+          </div>
+        )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">المحافظة</label>
-              <select 
-                 value={governorate}
-                 onChange={e => setGovernorate(e.target.value)}
-                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-accent-gold outline-none"
-              >
-                 <option>بغداد</option>
-                 <option>البصرة</option>
-                 <option>أربيل</option>
-                 <option>نينوى</option>
-                 <option>النجف</option>
-                 {/* ... other provinces ... */}
-              </select>
+        {step === 3 && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+             <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-4">
+              <FileText className="text-accent-gold" /> المستمسكات
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">يرجى رفع صور واضحة لسرعة قبول حسابك.</p>
+            <FileUpload label="البطاقة الوطنية (الوجهين)" required onUploadComplete={setNationalIdUrl} />
+            <FileUpload label="إجازة السوق" required onUploadComplete={setDrivingLicenseUrl} />
+            <FileUpload label="سنوية السيارة" required onUploadComplete={setCarRegistrationUrl} />
+            <FileUpload label="صورة شخصية (سيلفي)" required onUploadComplete={setPersonalPhotoUrl} />
+            <FileUpload label="صورة السيارة من الأمام" required onUploadComplete={setCarFrontPhotoUrl} />
+            <FileUpload label="صورة السيارة من الخلف" required onUploadComplete={setCarBackPhotoUrl} />
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+             <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-2">
+              <CheckCircle className="text-accent-gold" /> مراجعة الطلب
+            </h3>
+            <p className="text-sm text-gray-500 mb-6 border-b border-gray-200 pb-4">يرجى التأكد من البيانات قبل إرسال الطلب، لا يمكن تعديلها أثناء المراجعة.</p>
+            
+            <div className="space-y-3 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+               <h4 className="font-bold text-primary-dark">معلومات الحساب</h4>
+               <div className="flex justify-between text-sm"><span className="text-gray-500">الاسم</span><span className="font-medium text-gray-800">{userData?.name}</span></div>
+               <div className="flex justify-between text-sm"><span className="text-gray-500">الهاتف</span><span className="font-medium text-gray-800 dir-ltr">{phone}</span></div>
+            </div>
+
+            <div className="space-y-3 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+               <h4 className="font-bold text-primary-dark">معلومات السيارة</h4>
+               <div className="flex justify-between text-sm"><span className="text-gray-500">السيارة</span><span className="font-medium text-gray-800">{carType} - {carModel}</span></div>
+               <div className="flex justify-between text-sm"><span className="text-gray-500">اللون</span><span className="font-medium text-gray-800">{carColor}</span></div>
+               <div className="flex justify-between text-sm"><span className="text-gray-500">اللوحة</span><span className="font-medium text-gray-800">{carNumber}</span></div>
+            </div>
+            
+            <div className="space-y-3 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+               <h4 className="font-bold text-primary-dark">المستمسكات (العدد: 6)</h4>
+               <div className="flex justify-between text-sm"><span className="text-gray-500">حالة الرفع</span><span className="font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg">مكتملة</span></div>
             </div>
           </div>
+        )}
+      </div>
 
-          <div className="pt-4 border-t border-gray-100 mt-6">
-            <h3 className="font-bold text-primary-dark mb-4 text-lg">المستمسكات المطلوبة</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FileUpload label="البطاقة الوطنية (الوجهين)" required onUploadComplete={setNationalIdUrl} />
-              <FileUpload label="إجازة السوق" required onUploadComplete={setDrivingLicenseUrl} />
-              <FileUpload label="سنوية السيارة" required onUploadComplete={setCarRegistrationUrl} />
-              <FileUpload label="صورة شخصية (سيلفي)" required onUploadComplete={setPersonalPhotoUrl} />
-              <FileUpload label="صورة السيارة من الأمام" required onUploadComplete={setCarFrontPhotoUrl} />
-              <FileUpload label="صورة السيارة من الخلف" required onUploadComplete={setCarBackPhotoUrl} />
-            </div>
-          </div>
-          
+      <div className="flex-none p-4 bg-white border-t border-gray-200 flex gap-4 absolute bottom-0 inset-x-0 z-20 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {step > 1 && (
           <button 
-             type="submit" 
-             disabled={loading}
-             className="w-full bg-primary-dark disabled:opacity-50 hover:bg-opacity-90 text-white font-bold py-4 rounded-xl shadow-md transition-all"
+            type="button"
+            onClick={prevStep}
+            className="px-4 py-4 rounded-2xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors flex items-center justify-center"
           >
-             {loading ? 'جاري الإرسال...' : 'إرسال الطلب للمراجعة'}
+            <ChevronRight size={20} />
           </button>
-        </form>
+        )}
+        {step < 4 ? (
+          <button 
+            onClick={nextStep}
+            className="flex-1 bg-[#F6C21A] text-[#111827] font-bold py-4 px-6 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            التالي <ChevronLeft size={20} />
+          </button>
+        ) : (
+          <button 
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1 bg-[#071426] text-white font-bold py-4 px-6 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {loading ? 'جاري الإرسال...' : 'إرسال الطلب للمراجعة'}
+            {!loading && <CheckCircle size={20} className="text-[#F6C21A]" />}
+          </button>
+        )}
       </div>
     </div>
   );

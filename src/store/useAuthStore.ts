@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { auth, db, handleFirestoreError, OperationType, googleProvider } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import toast from 'react-hot-toast';
 
 export type Role = 'customer' | 'driver' | 'admin';
 
@@ -77,10 +78,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     } catch (error: any) {
       console.error(error);
-      if (error.code === 'auth/unauthorized-domain') {
-        alert("عليك إضافة رابط Vercel (taxii-nine.vercel.app) في Firebase Console -> Authentication -> Settings -> Authorized Domains");
+      if (error.code === 'auth/popup-closed-by-user') {
+        toast.error('تم إلغاء تسجيل الدخول، حاول مرة ثانية.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        console.error('Unauthorized domain. Please add this domain to Firebase Auth Settings.');
+        toast.error('حدث خطأ بالاتصال، يرجى تحديث الصفحة والمحاولة أُخرى.');
       } else {
-        alert("حدث خطأ أثناء تسجيل الدخول: " + error.message);
+        toast.error('حدث خطأ أثناء الاتصال، يرجى المحاولة لاحقاً.');
       }
     } finally {
       set({ loading: false });

@@ -5,6 +5,8 @@ import { MapPin, Navigation, CarTaxiFront, Clock } from 'lucide-react';
 import { collection, addDoc, onSnapshot, query, where, orderBy, limit, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 
+import toast from 'react-hot-toast';
+
 const DEFAULT_CENTER: [number, number] = [33.6744, 44.3800];
 
 export function CustomerDashboard() {
@@ -90,7 +92,7 @@ export function CustomerDashboard() {
       });
     } catch (error) {
       console.error(error);
-      alert("حدث خطأ أثناء حجز السائق");
+      toast.error("حدث خطأ أثناء حجز السائق، حاول ثانية.");
     }
   };
 
@@ -178,12 +180,30 @@ export function CustomerDashboard() {
   };
 
   const fetchSuggestions = async (query: string, setter: (val: any[]) => void) => {
-    if (query.length < 3) {
+    if (query.length < 2) {
       setter([]);
       return;
     }
+    
+    // Custom static suggestions for Tarmia
+    const localPlaces = [
+      { display_name: "مركز الطارمية", lat: "33.6744", lon: "44.3800" },
+      { display_name: "جسر الطارمية", lat: "33.6650", lon: "44.3750" },
+      { display_name: "المشاهدة", lat: "33.7200", lon: "44.3100" },
+      { display_name: "التاجي", lat: "33.4300", lon: "44.2900" },
+      { display_name: "الكاظمية", lat: "33.3800", lon: "44.3400" },
+      { display_name: "الاعظمية", lat: "33.3600", lon: "44.3600" },
+      { display_name: "بغداد", lat: "33.3152", lon: "44.3661" }
+    ];
+
+    const filtered = localPlaces.filter(p => p.display_name.includes(query));
+    if (filtered.length > 0) {
+       setter(filtered);
+       return;
+    }
+
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=iq&limit=5`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&accept-language=ar&countrycodes=iq&limit=5`);
       const data = await res.json();
       setter(data);
     } catch(e) {
@@ -195,11 +215,13 @@ export function CustomerDashboard() {
     if (type === 'pickup') {
       setPickupAddress(val);
       setShowPickupSuggestions(true);
-      fetchSuggestions(val, setPickupSuggestions);
+      if (val.length === 0) setPickupSuggestions([]);
+      else fetchSuggestions(val, setPickupSuggestions);
     } else {
       setDestinationAddress(val);
       setShowDestinationSuggestions(true);
-      fetchSuggestions(val, setDestinationSuggestions);
+      if (val.length === 0) setDestinationSuggestions([]);
+      else fetchSuggestions(val, setDestinationSuggestions);
     }
   };
 
@@ -251,7 +273,7 @@ export function CustomerDashboard() {
   const requestTrip = async () => {
     if (!userData) return;
     if (!pickupAddress || !destinationAddress) {
-      alert("الرجاء تحديد موقع الانطلاق والوجهة");
+      toast.error("الرجاء تحديد موقع الانطلاق والوجهة أولاً");
       return;
     }
     
@@ -269,9 +291,10 @@ export function CustomerDashboard() {
         estimatedPrice: estimatedPrice || 3000,
         createdAt: Date.now()
       });
+      toast.success("تم إرسال طلبك بنجاح");
     } catch (e) {
       console.error(e);
-      alert("حدث خطأ أثناء حجز الرحلة");
+      toast.error("حدث خطأ أثناء حجز الرحلة، يرجى المحاولة مرة أُخرى");
     } finally {
       setRequestingTrip(false);
     }
@@ -296,7 +319,7 @@ export function CustomerDashboard() {
         />
       </div>
 
-      <div className="absolute bottom-4 inset-x-4 md:w-96 md:bottom-auto md:top-8 md:left-auto md:right-8 z-10 flex flex-col gap-4">
+      <div className="absolute bottom-[88px] inset-x-4 md:w-96 md:bottom-auto md:top-8 md:left-auto md:right-8 z-10 flex flex-col gap-4">
         
         {activeTrip ? (
            <div className="bg-white p-6 rounded-2xl shadow-2xl border-t-4 border-accent-gold border border-gray-100">

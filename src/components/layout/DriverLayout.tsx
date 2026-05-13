@@ -7,7 +7,7 @@ export function DriverLayout() {
 
   return (
     <div className="h-screen w-full bg-bg-light flex flex-col overflow-hidden">
-      <header className="flex-none h-16 border-b border-gray-200 bg-white px-4 md:px-8 flex items-center justify-between z-20">
+      <header className="flex-none hidden md:flex h-16 border-b border-gray-200 bg-white px-4 md:px-8 items-center justify-between z-20">
         <div className="flex items-center gap-3">
           <div className="text-sm font-medium bg-accent-yellow/10 px-3 py-1 rounded-full text-primary-dark border border-accent-yellow/30">
             تكسي الطارمية (كابتن)
