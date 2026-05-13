@@ -119,6 +119,29 @@ export function DriverRegister() {
          return;
       }
 
+      console.log("Saving driver data to Firestore...");
+      
+      // Save full driver data context into the `drivers` collection
+      const { setDoc } = await import('firebase/firestore');
+      await setDoc(doc(db, 'drivers', userData.id), {
+        uid: userData.id,
+        fullName: userData.name,
+        phone,
+        email: userData.email || '',
+        area: governorate,
+        carType,
+        carModel,
+        carColor,
+        plateNumber: carNumber,
+        seats,
+        reviewStatus: "pending",
+        telegramSent: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      console.log("Saving user status to Firestore...");
+      // Also update the `users` collection specifically for UI rendering purposes
       await updateDoc(doc(db, 'users', userData.id), {
         phone,
         driverInfo: {
@@ -132,11 +155,12 @@ export function DriverRegister() {
         driverApproved: false,
         status: 'pending_approval'
       });
+      console.log("Firestore saves completed successfully.");
       
       toast.success('تم إرسال طلبك للمراجعة بنجاح!');
     } catch (e: any) {
-      console.error(e);
-      toast.error('فشل إرسال الطلب، حاول مرة أخرى.');
+      console.error("Driver application error:", e);
+      toast.error('فشل إرسال الطلب، تأكد من الاتصال وحاول مرة أخرى.');
     } finally {
       setLoading(false);
     }

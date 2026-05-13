@@ -48,12 +48,15 @@ async function sendTelegramMessage(text: string) {
 }
 
 app.post("/api/driver/apply", upload.any(), async (req, res) => {
+  console.log("Driver apply API started");
   try {
     const data = req.body;
     const files = req.files as Express.Multer.File[];
 
     // Extracting fields
     const { fullName, phone, email, area, carType, carModel, carColor, plateNumber, seats, uid } = data;
+    
+    console.log("Received fields:", { fullName, phone, email, area, carType, carModel, plateNumber, uid });
 
     const messageText = `
 🚕 <b>طلب تسجيل كابتن جديد</b>
@@ -80,43 +83,96 @@ ${new Date().toLocaleString('ar-IQ', { timeZone: 'Asia/Baghdad' })}
 📌 <b>الحالة:</b>
 بانتظار مراجعة الإدارة`;
 
-    // 1. Send text message with admin panel link instead of callback buttons, because we don't have Firebase Admin SDK to update the db directly.
     const replyMarkup = {
       inline_keyboard: [
         [
-          { text: "✅ الذهاب للوحة الإدارة للقبول/الرفض", url: "https://tarmiyah-taxi-app.vercel.app/admin" }, // Replace with real domain if available
+          { text: "✅ الذهاب للوحة الإدارة للقبول/الرفض", url: "https://tarmiyah-taxi-app.vercel.app/admin" },
           { text: "ℹ️ تفاصيل", callback_data: `info_${uid}` }
         ]
       ]
     };
 
-    if (TELEGRAM_BOT_TOKEN && TELEGRAM_ADMIN_CHAT_ID) {
-      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        chat_id: TELEGRAM_ADMIN_CHAT_ID,
-        text: messageText,
-        parse_mode: 'HTML',
-        reply_markup: JSON.stringify(replyMarkup)
-      });
-      
-      // 2. Send images
-      for (const file of files) {
+    if (!TELEGRAM_BOT_TOKEN) {
+      console.warn("Missing TELEGRAM_BOT_TOKEN");
+      return res.status(500).json({ success: false, error: "Missing TELEGRAM_BOT_TOKEN" });
+    }
+
+    if (!TELEGRAM_ADMIN_CHAT_ID) {
+      console.warn("Missing TELEGRAM_ADMIN_CHAT_ID");
+      return res.status(500).json({ success: false, error: "Missing TELEGRAM_ADMIN_CHAT_ID" });
+    }
+
+    console.log("Sending Telegram message...");
+    const tgRes = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_ADMIN_CHAT_ID,
+      text: messageText,
+      parse_mode: 'HTML',
+      reply_markup: JSON.stringify(replyMarkup)
+    });
+    
+    if (tgRes.status !== 200) {
+      console.error("Telegram error:", tgRes.data);
+      throw new Error(tgRes.data.description || "Telegram send failed");
+    }
+
+    console.log("Sending Telegram documents...");
+    let mediaFailed = false;
+    for (const file of files) {
+      try {
         const formData = new FormData();
         formData.append('chat_id', TELEGRAM_ADMIN_CHAT_ID);
         formData.append('document', file.buffer, file.originalname); // using document so it keeps quality
-        formData.append('caption', `${file.fieldname} - ${fullName}`);
+        
+        let caption = file.fieldname;
+        if (caption === 'البطاقة_الوطنية_أو_الهوية') caption = 'صورة الهوية / البطاقة الوطنية';
+        if (caption === 'إجازة_السوق') caption = 'إجازة السوق';
+        if (caption === 'سنوية_السيارة') caption = 'سنوية السيارة';
+        if (caption === 'صورة_السيارة_أمام') caption = 'السيارة من الأمام';
+        if (caption === 'صورة_السيارة_خلف') caption = 'السيارة من الخلف';
+        if (caption === 'الصورة_الشخصية') caption = 'صورة شخصية (سيلفي)';
+        
+        formData.append('caption', `${caption} - ${fullName}`);
 
-        await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, formData, {
+        const docRes = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, formData, {
           headers: formData.getHeaders()
         });
+        
+        if (docRes.status !== 200) {
+          console.error("Telegram document error:", docRes.data);
+          mediaFailed = true;
+        }
+      } catch (mediaErr: any) {
+        console.error("Failed to send document:", file.fieldname, mediaErr.response?.data || mediaErr.message);
+        mediaFailed = true;
       }
-    } else {
-        console.warn("TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID is missing. Emulating success.");
+    }
+    
+    if (mediaFailed) {
+      return res.status(500).json({ success: false, error: "فشل إرسال بعض المستمسكات إلى الإدارة" });
     }
 
+    console.log("Driver application completed");
     res.json({ success: true });
   } catch (err: any) {
-    console.error("Error sending to telegram", err);
-    res.status(500).json({ success: false, error: "فشل الإرسال إلى تلغرام" });
+    const errorDesc = err.response?.data?.description || err.message;
+    console.error("Error sending to telegram", errorDesc);
+    res.status(500).json({ success: false, error: errorDesc || "فشل الإرسال إلى تلغرام" });
+  }
+});
+
+app.post("/api/test-telegram", async (req, res) => {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_CHAT_ID) {
+    return res.status(500).json({ success: false, error: "MISSING_ENV: Make sure TELEGRAM_BOT_TOKEN and TELEGRAM_ADMIN_CHAT_ID are set." });
+  }
+  try {
+    const tgRes = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_ADMIN_CHAT_ID,
+      text: "اختبار بوت تكسي الطارمية - يعمل بنجاح ✅"
+    });
+    res.json({ success: true, data: tgRes.data });
+  } catch (err: any) {
+    console.error("Test Telegram Error:", err.response?.data || err.message);
+    res.status(500).json({ success: false, error: err.response?.data || err.message });
   }
 });
 
