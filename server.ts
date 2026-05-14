@@ -5,15 +5,47 @@ import axios from "axios";
 import FormData from "form-data";
 import { createServer as createViteServer } from "vite";
 import fs from "fs";
+import admin from "firebase-admin";
+
+// Initialize Firebase Admin with ADC (Application Default Credentials)
+if (admin.apps.length === 0) {
+  try {
+    const firebaseConfig = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf8'));
+    admin.initializeApp({
+      projectId: firebaseConfig.projectId,
+    });
+    console.log("Firebase Admin initialized successfully with Project ID:", firebaseConfig.projectId);
+  } catch (err) {
+    console.error("Firebase Admin init error (might be expected if credentials missing):", err);
+  }
+}
+
+const db_admin = admin.apps.length > 0 ? admin.firestore() : null;
+
+// Helper to escape HTML for Telegram
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "6402835887:AAFlDKgGbPA1r6W-UISGvIq2izeimAOVcbU";
+const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "361157589";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "jost535@gmail.com";
 
 const app = express();
 const PORT = 3000;
+
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
 
 app.use(express.json());
 
@@ -39,7 +71,7 @@ async function sendTelegramMessage(text: string) {
       text: text,
       parse_mode: 'HTML',
       reply_markup: JSON.stringify(replyMarkup)
-    });
+    }, { timeout: 20000 });
     return res.data;
   } catch (err: any) {
     console.error("Telegram Error:", err.response?.data || err.message);
@@ -47,16 +79,39 @@ async function sendTelegramMessage(text: string) {
   }
 }
 
-app.post("/api/driver/apply", upload.any(), async (req, res) => {
+app.post("/api/driver/apply", (req, res, next) => {
+  upload.any()(req, res, (err) => {
+    if (err) {
+      console.error("Multer error:", err);
+      return res.status(400).json({ success: false, error: "حدث خطأ أثناء معالجة الصور. ربما الحجم كبير جداً." });
+    }
+    next();
+  });
+}, async (req, res) => {
   console.log("Driver apply API started");
   try {
     const data = req.body;
     const files = req.files as Express.Multer.File[];
 
     // Extracting fields
-    const { fullName, phone, email, area, carType, carModel, carColor, plateNumber, seats, uid } = data;
+    const { fullName: rawFullName, phone: rawPhone, email: rawEmail, area: rawArea, carType: rawCarType, carModel: rawCarModel, carColor: rawCarColor, plateNumber: rawPlateNumber, seats: rawSeats, uid } = data;
     
-    console.log("Received fields:", { fullName, phone, email, area, carType, carModel, plateNumber, uid });
+    if (!uid) {
+      console.warn("Driver apply failed: Missing UID");
+      return res.status(400).json({ success: false, error: "Missing UID" });
+    }
+
+    const fullName = escapeHtml(rawFullName || "");
+    const phone = escapeHtml(rawPhone || "");
+    const email = escapeHtml(rawEmail || "");
+    const area = escapeHtml(rawArea || "");
+    const carType = escapeHtml(rawCarType || "");
+    const carModel = escapeHtml(rawCarModel || "");
+    const carColor = escapeHtml(rawCarColor || "");
+    const plateNumber = escapeHtml(rawPlateNumber || "");
+    const seats = escapeHtml(rawSeats || "");
+
+    console.log("Received fields for UID:", uid);
 
     const messageText = `
 🚕 <b>طلب تسجيل كابتن جديد</b>
@@ -108,7 +163,7 @@ ${new Date().toLocaleString('ar-IQ', { timeZone: 'Asia/Baghdad' })}
       text: messageText,
       parse_mode: 'HTML',
       reply_markup: JSON.stringify(replyMarkup)
-    });
+    }, { timeout: 20000 });
     
     if (tgRes.status !== 200) {
       console.error("Telegram error:", tgRes.data);
@@ -134,7 +189,8 @@ ${new Date().toLocaleString('ar-IQ', { timeZone: 'Asia/Baghdad' })}
         formData.append('caption', `${caption} - ${fullName}`);
 
         const docRes = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, formData, {
-          headers: formData.getHeaders()
+          headers: formData.getHeaders(),
+          timeout: 20000
         });
         
         if (docRes.status !== 200) {
@@ -151,7 +207,7 @@ ${new Date().toLocaleString('ar-IQ', { timeZone: 'Asia/Baghdad' })}
       return res.status(500).json({ success: false, error: "فشل إرسال بعض المستمسكات إلى الإدارة" });
     }
 
-    console.log("Driver application completed");
+    console.log("Driver application completed successfully via Telegram.");
     res.json({ success: true });
   } catch (err: any) {
     const errorDesc = err.response?.data?.description || err.message;

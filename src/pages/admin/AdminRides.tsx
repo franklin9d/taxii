@@ -1,12 +1,30 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
-import { Map, Clock, Navigation } from 'lucide-react';
+import { Map, Clock, Navigation, User, Car } from 'lucide-react';
 
 export function AdminRides() {
   const [rides, setRides] = useState<any[]>([]);
+  const [userMap, setUserMap] = useState<Record<string, any>>({});
+  const [driverMap, setDriverMap] = useState<Record<string, any>>({});
 
   useEffect(() => {
+    // Fetch users for mapping
+    const fetchUsers = async () => {
+      try {
+         const snap = await getDocs(collection(db, 'users'));
+         const uMap: any = {};
+         snap.docs.forEach(d => { uMap[d.id] = d.data(); });
+         setUserMap(uMap);
+         
+         const dSnap = await getDocs(collection(db, 'drivers'));
+         const dMap: any = {};
+         dSnap.docs.forEach(d => { dMap[d.id] = d.data(); });
+         setDriverMap(dMap);
+      } catch(e) {}
+    };
+    fetchUsers();
+
     const q = query(collection(db, 'trips'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRides(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -59,6 +77,29 @@ export function AdminRides() {
                       <div className="flex items-start gap-2 text-sm">
                         <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0"></div>
                         <span className="text-gray-700">{ride.destinationAddress}</span>
+                      </div>
+                      <div className="flex items-start gap-2 text-sm mt-3 pt-3 border-t border-gray-100">
+                        <div className="flex flex-col gap-1 w-full text-xs">
+                          {ride.customerId && userMap[ride.customerId] && (
+                            <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
+                              <User size={12}/> العميل: {userMap[ride.customerId].name} ({userMap[ride.customerId].phone || 'لا يوجد هاتف'})
+                            </div>
+                          )}
+                          {ride.driverId && (driverMap[ride.driverId] || userMap[ride.driverId]) && (
+                            <div className="flex items-center gap-1 text-accent-dark bg-accent-yellow/10 px-2 py-1 rounded w-fit">
+                              {(() => {
+                                const dInfo = driverMap[ride.driverId] || userMap[ride.driverId] || {};
+                                return (
+                                  <>
+                                    <Car size={12}/> الكابتن: {dInfo.fullName || dInfo.name} ({dInfo.phone || 'لا يوجد هاتف'}) 
+                                    - {dInfo.carType || dInfo.driverInfo?.carType} {dInfo.carModel || dInfo.driverInfo?.carModel} 
+                                    ({dInfo.plateNumber || dInfo.driverInfo?.carNumber || 'بدون لوحة'})
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="p-4 space-y-2">

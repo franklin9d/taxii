@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { MapComponent, driverIcon, defaultIcon } from '../../components/MapComponent';
 import { MapPin, Navigation, CarTaxiFront, Clock } from 'lucide-react';
-import { collection, addDoc, onSnapshot, query, where, orderBy, limit, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, orderBy, limit, doc, updateDoc, getDocs, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 
 import toast from 'react-hot-toast';
@@ -28,76 +28,64 @@ export function CustomerDashboard() {
   
   const [activeTrip, setActiveTrip] = useState<any>(null);
   const [requestingTrip, setRequestingTrip] = useState(false);
-  const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
   const [driverLocation, setDriverLocation] = useState<[number, number] | null>(null);
 
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  const [appSettings, setAppSettings] = useState<any>(null);
 
   useEffect(() => {
-    handleGetLocation();
-    
-    // Seed some mock drivers for demonstration purposes
-    const seedDrivers = async () => {
+    // Fetch global settings
+    const fetchSettings = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'driver'), limit(1)));
-        if (snap.empty) {
-          await addDoc(collection(db, 'users'), {
-            name: 'علي أحمد',
-            phone: '07701234567',
-            role: 'driver',
-            status: 'active',
-            driverApproved: true,
-            isOnline: true,
-            driverInfo: {
-              carType: 'صالون',
-              carModel: 'تويوتا كامري 2020',
-              carColor: 'أبيض',
-              carNumber: 'بغداد 12345 ق'
-            }
-          });
+        const docRef = doc(db, 'settings', 'general');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setAppSettings(docSnap.data());
+        } else {
+          setAppSettings({ baseFare: 2000, pricePerKm: 500, minimumFare: 2500, rushHourMultiplier: 1.5, rushHourEnabled: false });
         }
       } catch (e) {
-        console.error('Failed to seed drivers', e);
+        console.error(e);
       }
     };
-    seedDrivers();
+    fetchSettings();
   }, []);
 
-  // Listen to available drivers when searching
+  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const d = R * c; // Distance in km
+    // Add 30% to account for actual road layout instead of straight line
+    return d * 1.3;
+  }
+
   useEffect(() => {
-    if (activeTrip?.status === 'searching_for_driver') {
-      const q = query(
-        collection(db, 'users'), 
-        where('role', '==', 'driver'),
-        where('isOnline', '==', true)
-      );
-      
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const driversData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setAvailableDrivers(driversData);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'users');
-      });
-
-      return () => unsubscribe();
+    if (pickupLocation && destinationLocation && appSettings) {
+      const dist = calculateDistance(pickupLocation[0], pickupLocation[1], destinationLocation[0], destinationLocation[1]);
+      setDistanceKm(dist);
+      let price = appSettings.baseFare + (dist * appSettings.pricePerKm);
+      if (appSettings.rushHourEnabled) {
+        price *= appSettings.rushHourMultiplier;
+      }
+      price = Math.max(price, appSettings.minimumFare);
+      // Round to nearest 250
+      price = Math.ceil(price / 250) * 250;
+      setEstimatedPrice(price);
     } else {
-      setAvailableDrivers([]);
+      setEstimatedPrice(null);
+      setDistanceKm(null);
     }
-  }, [activeTrip?.status]);
-
-  const selectDriver = async (driverId: string) => {
-    if (!activeTrip) return;
-    try {
-      await updateDoc(doc(db, 'trips', activeTrip.id), {
-        driverId,
-        status: 'driver_assigned',
-        acceptedAt: Date.now()
-      });
-    } catch (error) {
-      console.error(error);
-      toast.error("حدث خطأ أثناء حجز السائق، حاول ثانية.");
-    }
-  };
+  }, [pickupLocation, destinationLocation, appSettings]);
+  useEffect(() => {
+    handleGetLocation();
+  }, []);
 
   // Listen to active trips
   useEffect(() => {
@@ -132,7 +120,7 @@ export function CustomerDashboard() {
   // Listen to assigned driver location + info
   useEffect(() => {
     if (activeTrip && activeTrip.driverId) {
-      const unsubscribe = onSnapshot(doc(db, 'users', activeTrip.driverId), (snapshot) => {
+      const unsubscribe = onSnapshot(doc(db, 'drivers', activeTrip.driverId), (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
           setAssignedDriverInfo(data);
@@ -141,7 +129,7 @@ export function CustomerDashboard() {
           }
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, `users/${activeTrip.driverId}`);
+        handleFirestoreError(error, OperationType.GET, `drivers/${activeTrip.driverId}`);
       });
       return () => unsubscribe();
     } else {
@@ -168,16 +156,7 @@ export function CustomerDashboard() {
     }
   };
 
-  useEffect(() => {
-    if (destinationAddress.length >= 3) {
-      // Mock calculation based on length to simulate dynamic price
-      const basePrice = 3000;
-      const lengthFactor = Math.min(destinationAddress.length, 20) * 150;
-      setEstimatedPrice(basePrice + lengthFactor);
-    } else {
-      setEstimatedPrice(null);
-    }
-  }, [destinationAddress]);
+// This block has been replaced by the dynamic pricing logic based on distance
 
   const reverseGeocode = async (latlng: [number, number]): Promise<string> => {
     try {
@@ -393,41 +372,8 @@ export function CustomerDashboard() {
                    <div className="animate-pulse mb-3 p-3 bg-accent-yellow/10 rounded-full">
                      <CarTaxiFront className="w-8 h-8 text-accent-gold" />
                    </div>
-                   <p className="text-sm text-gray-500 font-medium">يرجى الانتظار، أو اختر كابتن من المتاحين...</p>
+                   <p className="text-sm text-gray-500 font-medium">يرجى الانتظار، سيتم تعيين كابتن للرحلة قريباً...</p>
                  </div>
-                 
-                 {availableDrivers.length > 0 && (
-                   <div className="mt-2 border-t border-gray-100 pt-4">
-                     <p className="text-xs font-bold text-gray-500 mb-3">السائقون المتاحون بالقرب منك:</p>
-                     <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-                       {availableDrivers.map(driver => (
-                         <div key={driver.id} className="flex flex-col gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100 transition-all hover:border-accent-gold/50">
-                           <div className="flex justify-between items-center">
-                             <div className="flex items-center gap-3">
-                               <div className="w-10 h-10 bg-primary-dark rounded-full flex items-center justify-center text-accent-gold font-bold text-sm shadow-sm">
-                                 {driver.name ? driver.name.substring(0, 1) : 'ك'}
-                               </div>
-                               <div className="flex flex-col">
-                                 <p className="font-bold text-primary-dark text-sm">{driver.name || 'سائق غير معروف'}</p>
-                                 <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-0.5">
-                                   <span>{driver.carModel || 'سيارة مجهولة'}</span>
-                                   <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                                   <span>{driver.location || 'موقع غير معروف'}</span>
-                                 </div>
-                               </div>
-                             </div>
-                             <button
-                               onClick={() => selectDriver(driver.id)}
-                               className="bg-accent-yellow hover:bg-[#F2BD23] text-primary-dark text-xs font-bold py-2 px-4 rounded-lg transition-transform active:scale-95 shadow-sm"
-                             >
-                               اختيار
-                             </button>
-                           </div>
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                 )}
 
                  <button onClick={cancelTrip} className="mt-6 text-red-500 text-sm hover:text-red-700 font-bold underline transition-colors self-center">إلغاء الطلب</button>
                </div>
@@ -436,34 +382,34 @@ export function CustomerDashboard() {
              {activeTrip.status !== 'searching_for_driver' && assignedDriverInfo && (
                <div className="flex flex-col gap-4 mt-4 border-t border-gray-100 pt-4">
                  <div className="flex items-center gap-4">
-                   <div className="w-16 h-16 bg-gray-100 rounded-full overflow-hidden flex items-center justify-center border-2 border-accent-gold shadow-sm">
-                     {assignedDriverInfo.documents?.personalPhotoUrl ? (
-                        <img src={assignedDriverInfo.documents.personalPhotoUrl} alt="الكابتن" className="w-full h-full object-cover" />
+                   <div className="w-16 h-16 bg-gray-100 rounded-full overflow-hidden flex items-center justify-center border-2 border-accent-gold shadow-sm shrink-0">
+                     {assignedDriverInfo.photoUrl ? (
+                        <img src={assignedDriverInfo.photoUrl} alt="الكابتن" className="w-full h-full object-cover" />
                      ) : (
-                        <span className="text-2xl text-gray-400">{assignedDriverInfo.name?.substring(0, 1) || 'ك'}</span>
+                        <span className="text-2xl font-bold text-gray-400">{(assignedDriverInfo.fullName || assignedDriverInfo.name)?.substring(0, 1) || 'ك'}</span>
                      )}
                    </div>
                    <div className="flex flex-col">
-                     <p className="font-bold text-primary-dark text-lg">{assignedDriverInfo.name || 'سائق غير معروف'}</p>
+                     <p className="font-bold text-primary-dark text-lg line-clamp-1">{assignedDriverInfo.fullName || assignedDriverInfo.name || 'سائق غير معروف'}</p>
                      <p className="text-xs text-gray-500 font-bold mt-1 dir-ltr text-right">{assignedDriverInfo.phone}</p>
-                     {assignedDriverInfo.driverInfo?.carModel && (
-                       <p className="text-xs text-gray-500 mt-1">السيارة: {assignedDriverInfo.driverInfo.carModel} - {assignedDriverInfo.driverInfo.carColor || ''}</p>
+                     {assignedDriverInfo.carType && assignedDriverInfo.carModel && (
+                       <p className="text-xs text-gray-500 mt-1 line-clamp-1">السيارة: {assignedDriverInfo.carType} - {assignedDriverInfo.carModel} ({assignedDriverInfo.carColor || 'اللون غير محدد'})</p>
                      )}
-                     {assignedDriverInfo.driverInfo?.carNumber && (
+                     {(assignedDriverInfo.plateNumber || assignedDriverInfo.carNumber) && (
                        <div className="inline-flex mt-2 items-center gap-2 text-xs font-bold bg-gray-100 px-3 py-1.5 rounded-lg text-gray-700 w-fit">
                          <span className="w-3 h-3 bg-gray-300 rounded-sm text-[8px] flex items-center justify-center">ق</span>
-                         <span className="dir-ltr">{assignedDriverInfo.driverInfo.carNumber}</span>
+                         <span className="dir-ltr">{assignedDriverInfo.plateNumber || assignedDriverInfo.carNumber}</span>
                        </div>
                      )}
                    </div>
                  </div>
                  
                  <div className="flex gap-2 mt-2">
-                   <a href={`tel:${assignedDriverInfo.phone}`} className="flex-1 bg-green-50 text-green-600 font-bold py-3 rounded-xl hover:bg-green-100 transition-colors text-center text-sm">
-                     اتصال بالكابتن
+                   <a href={`tel:${assignedDriverInfo.phone}`} className="flex-1 bg-green-50 text-green-600 font-bold py-3 rounded-xl border border-green-200 hover:bg-green-100 hover:border-green-300 transition-colors text-center text-sm flex items-center justify-center gap-2 shadow-sm">
+                     <span className="text-lg">📞</span> اتصال بالكابتن
                    </a>
                    {['driver_assigned', 'driver_on_way'].includes(activeTrip.status) && (
-                     <button onClick={cancelTrip} className="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-xl hover:bg-red-100 transition-colors text-center text-sm">
+                     <button onClick={cancelTrip} className="flex-1 bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-100 hover:bg-red-100 transition-colors text-center text-sm shadow-sm">
                        إلغاء الطلب
                      </button>
                    )}
@@ -541,13 +487,16 @@ export function CustomerDashboard() {
                 )}
               </div>
 
-              {estimatedPrice && (
+              {estimatedPrice && distanceKm && (
                 <div className="p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-primary-dark">
                       <span className="font-bold text-xs mt-1">IQD</span>
                     </div>
-                    <span className="text-gray-500 font-bold text-xs">السعر التقديري</span>
+                    <div>
+                      <div className="text-gray-500 font-bold text-xs">السعر التقديري</div>
+                      <div className="text-gray-400 text-[10px]">المسافة: ~{distanceKm.toFixed(1)} كم</div>
+                    </div>
                   </div>
                   <div className="text-xl font-black text-primary-dark tracking-tight">
                     {estimatedPrice.toLocaleString('en-US')} <span className="text-xs text-gray-500 font-bold">د.ع</span>

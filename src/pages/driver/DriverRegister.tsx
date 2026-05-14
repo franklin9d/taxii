@@ -39,6 +39,7 @@ export function DriverRegister() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Step 1: Personal
   const [phone, setPhone] = useState(userData?.phone || '');
@@ -86,6 +87,7 @@ export function DriverRegister() {
       toast.error('حدث خطأ في تحميل بيانات حسابك');
       return;
     }
+    console.log("Starting driver application submission for UID:", userData.id);
     setLoading(true);
     const formData = new FormData();
     formData.append('fullName', userData.name);
@@ -106,11 +108,66 @@ export function DriverRegister() {
     if (carFrontPhoto) formData.append('صورة_السيارة_أمام', carFrontPhoto);
     if (carBackPhoto) formData.append('صورة_السيارة_خلف', carBackPhoto);
 
+    // Compress personal photo for Firestore
+    let base64Photo = '';
+    if (personalPhoto) {
+      try {
+        const compressedBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(personalPhoto);
+          reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 150;
+              const MAX_HEIGHT = 150;
+              let width = img.width;
+              let height = img.height;
+              
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', 0.6));
+            };
+          };
+        });
+        base64Photo = compressedBase64;
+      } catch (err) {
+        console.error("Photo compression failed", err);
+      }
+    }
+
     try {
       const res = await fetch('/api/driver/apply', {
         method: 'POST',
         body: formData
       });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Server error response:", text);
+        try {
+          const json = JSON.parse(text);
+          throw new Error(json.error || `Server returned ${res.status}`);
+        } catch (e) {
+          throw new Error(`خطأ في السيرفر (${res.status}). يرجى المحاولة لاحقاً.`);
+        }
+      }
+
       const result = await res.json();
       
       if (!result.success) {
@@ -121,8 +178,8 @@ export function DriverRegister() {
 
       console.log("Saving driver data to Firestore...");
       
-      // Save full driver data context into the `drivers` collection
-      const { setDoc } = await import('firebase/firestore');
+      const { setDoc, updateDoc, doc } = await import('firebase/firestore');
+      
       await setDoc(doc(db, 'drivers', userData.id), {
         uid: userData.id,
         fullName: userData.name,
@@ -134,6 +191,7 @@ export function DriverRegister() {
         carColor,
         plateNumber: carNumber,
         seats,
+        photoUrl: base64Photo,
         reviewStatus: "pending",
         telegramSent: true,
         createdAt: new Date().toISOString(),
@@ -141,22 +199,25 @@ export function DriverRegister() {
       });
 
       console.log("Saving user status to Firestore...");
-      // Also update the `users` collection specifically for UI rendering purposes
       await updateDoc(doc(db, 'users', userData.id), {
         phone,
+        avatar: base64Photo || null,
         driverInfo: {
           carType,
           carModel,
           carColor,
           carNumber,
           governorate,
-          seats
+          seats,
+          photoUrl: base64Photo
         },
         driverApproved: false,
+        driverStatus: 'pending',
         status: 'pending_approval'
       });
       console.log("Firestore saves completed successfully.");
-      
+
+      setIsSubmitted(true);
       toast.success('تم إرسال طلبك للمراجعة بنجاح!');
     } catch (e: any) {
       console.error("Driver application error:", e);
@@ -166,24 +227,45 @@ export function DriverRegister() {
     }
   };
 
-  if (userData?.status === 'pending_approval') {
+  if (userData?.status === 'pending_approval' || isSubmitted) {
     return (
-      <div className="absolute inset-0 p-6 md:max-w-2xl mx-auto flex flex-col justify-center items-center text-center bg-bg-light pb-24">
-        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white">
-          <FileText className="w-10 h-10 text-blue-500" />
+      <div className="absolute inset-0 p-6 md:max-w-2xl mx-auto flex flex-col items-center bg-bg-light pb-24 overflow-y-auto">
+        <div className="w-full bg-white rounded-3xl p-8 mb-6 shadow-sm border border-gray-100 flex flex-col items-center mt-8">
+          <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-4 shadow-inner">
+            <FileText className="w-10 h-10" />
+          </div>
+          <h2 className="text-2xl font-black text-primary-dark mb-2">مرحباً كابتن {userData?.name}</h2>
+          <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-full font-bold text-sm mb-6">
+            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+            حسابك قيد المراجعة
+          </div>
+
+          <p className="text-gray-500 text-center text-sm leading-relaxed mb-8 max-w-sm">
+            تم إرسال بياناتك ومستمسكاتك إلى الإدارة. سيتم مراجعة طلبك وإشعارك عند القبول أو الرفض قريباً.
+          </p>
+
+          {(userData?.driverInfo || carType) && (
+            <div className="w-full bg-gray-50 rounded-2xl p-4 flex flex-col gap-3">
+              <h3 className="font-bold text-gray-700 mb-2 border-b border-gray-200 pb-2">بيانات المركبة</h3>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-500">نوع السيارة</span>
+                <span className="text-gray-800">{userData?.driverInfo?.carType || carType}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-500">اللون</span>
+                <span className="text-gray-800">{userData?.driverInfo?.carColor || carColor}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-gray-500">رقم اللوحة</span>
+                <span className="text-gray-800 dir-ltr">{userData?.driverInfo?.carNumber || carNumber}</span>
+              </div>
+            </div>
+          )}
         </div>
-        <h2 className="text-2xl font-bold text-primary-dark mb-3">طلبك قيد المراجعة</h2>
-        <p className="text-gray-500 mb-8 max-w-sm leading-relaxed">
-          تم إرسال بياناتك ومستمسكاتك إلى الإدارة عبر Telegram. سيتم مراجعة طلبك وإشعارك عند القبول أو الرفض.
-        </p>
-        <div className="flex gap-4">
-          <button onClick={() => navigate('/customer')} className="px-6 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-colors">
-            العودة للرئيسية
-          </button>
-          <button onClick={logout} className="px-6 py-3 bg-red-50 border border-red-100 text-red-600 font-bold rounded-xl shadow-sm hover:bg-red-100 transition-colors">
-            تسجيل الخروج
-          </button>
-        </div>
+        
+        <button onClick={logout} className="w-full max-w-xs py-4 bg-red-50 border border-red-100 text-red-600 font-bold rounded-2xl shadow-sm hover:bg-red-100 transition-colors">
+          تسجيل الخروج
+        </button>
       </div>
     );
   }

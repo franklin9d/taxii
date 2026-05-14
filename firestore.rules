@@ -9,7 +9,10 @@ service cloud.firestore {
     function existing() { return resource.data; }
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; 
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        (request.auth.token.email == 'jost535@gmail.com' && request.auth.token.email_verified == true)
+      );
     }
     function isValidId(id) { 
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
@@ -25,7 +28,7 @@ service cloud.firestore {
         isAdmin() ||
         (
           request.auth.uid == userId && 
-          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'avatar', 'driverInfo', 'documents', 'driverApproved', 'status', 'role', 'rejectionReason', 'updatedAt']) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'avatar', 'driverInfo', 'documents', 'driverApproved', 'driverStatus', 'status', 'role', 'rejectionReason', 'updatedAt']) &&
           (!('role' in incoming().diff(existing()).affectedKeys()) || incoming().role == existing().role)
         )
       );
@@ -33,10 +36,9 @@ service cloud.firestore {
 
     match /drivers/{driverId} {
       allow get: if isSignedIn() && isValidId(driverId);
-      allow list: if isSignedIn(); 
-      allow create: if isSignedIn();
-
-      allow update: if isSignedIn();
+      allow list: if isSignedIn(); // Driver list can be seen by signed in users (e.g. to find a driver)
+      allow create: if isSignedIn() && (request.auth.uid == driverId || isAdmin());
+      allow update: if isSignedIn() && (request.auth.uid == driverId || isAdmin());
     }
 
     match /trips/{tripId} {

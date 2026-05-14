@@ -9,6 +9,8 @@ export function AdminSettings() {
     baseFare: 2000,
     pricePerKm: 500,
     minimumFare: 2500,
+    rushHourMultiplier: 1.5,
+    rushHourEnabled: false,
     supportPhone: '+964',
     supportWhatsapp: '+964'
   });
@@ -104,6 +106,33 @@ export function AdminSettings() {
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">د.ع</span>
             </div>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-700">مضاعف أوقات الذروة (الازدحام)</label>
+            <div className="relative">
+              <input 
+                type="number" 
+                step="0.1"
+                value={settings.rushHourMultiplier}
+                onChange={e => setSettings({...settings, rushHourMultiplier: Number(e.target.value)})}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-accent-gold focus:border-transparent outline-none dir-ltr font-bold text-gray-800"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2 flex items-center gap-3 pt-6 md:col-span-2">
+            <input 
+              type="checkbox" 
+              id="rushHour"
+              checked={settings.rushHourEnabled}
+              onChange={e => setSettings({...settings, rushHourEnabled: e.target.checked})}
+              className="w-5 h-5 accent-accent-gold rounded cursor-pointer"
+            />
+            <label htmlFor="rushHour" className="text-sm font-bold text-red-600 cursor-pointer">
+              تفعيل أوقات الذروة (تطبيق المضاعف على الرحلات)
+            </label>
           </div>
         </div>
         

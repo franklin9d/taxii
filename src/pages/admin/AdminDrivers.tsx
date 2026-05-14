@@ -26,12 +26,26 @@ export function AdminDrivers() {
     return () => unsubscribe();
   }, [activeTab]);
 
-  const updateDriverStatus = async (id: string, status: string, additionalFields = {}) => {
+  const updateDriverStatus = async (id: string, status: string, additionalFields: any = {}) => {
     try {
+      // 1. Update users collection (main auth doc)
       await updateDoc(doc(db, 'users', id), {
-        status,
+        status, // This matches the tab status
+        driverStatus: additionalFields.role === 'driver' ? 'approved' : 
+                      additionalFields.driverApproved === false ? 'rejected' : 
+                      status === 'suspended' ? 'suspended' : 'pending',
         ...additionalFields
       });
+
+      // 2. Update drivers collection (form data doc)
+      await updateDoc(doc(db, 'drivers', id), {
+        reviewStatus: additionalFields.role === 'driver' ? 'approved' : 
+                      additionalFields.driverApproved === false ? 'rejected' : 
+                      status === 'suspended' ? 'suspended' : 'pending',
+        updatedAt: new Date().toISOString(),
+        ...(additionalFields.rejectionReason ? { rejectionReason: additionalFields.rejectionReason } : {})
+      });
+
       toast.success(`تم التحديث للعملية بنجاح`);
       setSelectedDriver(null);
       setShowRejectModal(false);

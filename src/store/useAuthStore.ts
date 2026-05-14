@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { auth, db, handleFirestoreError, OperationType, googleProvider } from '../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import toast from 'react-hot-toast';
 
@@ -12,7 +12,8 @@ export interface UserData {
   email: string;
   phone: string;
   role: Role;
-  status: 'active' | 'suspended' | 'pending_approval';
+  status: 'active' | 'suspended' | 'pending_approval' | 'rejected';
+  driverStatus?: 'pending' | 'approved' | 'rejected' | 'suspended';
   avatar?: string;
   createdAt: number;
   driverInfo?: {
@@ -40,6 +41,7 @@ interface AuthState {
   initialized: boolean;
   signInWithGoogle: (role?: Role) => Promise<void>;
   logout: () => Promise<void>;
+  updateUserData: (data: Partial<UserData>) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -47,6 +49,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   userData: null,
   loading: false,
   initialized: false,
+  updateUserData: (data: Partial<UserData>) => {
+    set(state => ({
+      userData: state.userData ? { ...state.userData, ...data } : null
+    }));
+  },
   signInWithGoogle: async (role: Role = 'customer') => {
     try {
       set({ loading: true });
@@ -99,27 +106,27 @@ export const useAuthStore = create<AuthState>((set) => ({
 }));
 
 // Initialize auth state listener
+let userUnsubscribe: (() => void) | null = null;
+
 onAuthStateChanged(auth, async (user) => {
+  if (userUnsubscribe) {
+    userUnsubscribe();
+    userUnsubscribe = null;
+  }
+
   if (user) {
     const userRef = doc(db, 'users', user.uid);
-    try {
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        useAuthStore.setState({ user, userData: userSnap.data() as UserData, initialized: true });
+    // Use real-time listener for user data
+    userUnsubscribe = onSnapshot(userRef, (snapshot) => {
+      if (snapshot.exists()) {
+        useAuthStore.setState({ user, userData: snapshot.data() as UserData, initialized: true });
       } else {
-        // give it a second in case it was just created
-        setTimeout(async () => {
-            const retrySnap = await getDoc(userRef);
-            if (retrySnap.exists()) {
-              useAuthStore.setState({ user, userData: retrySnap.data() as UserData, initialized: true });
-            } else {
-              useAuthStore.setState({ user: null, userData: null, initialized: true });
-            }
-        }, 1500);
+        useAuthStore.setState({ user, userData: null, initialized: true });
       }
-    } catch (e) {
+    }, (error) => {
+      console.error("User data sync error:", error);
       useAuthStore.setState({ user, userData: null, initialized: true });
-    }
+    });
   } else {
     useAuthStore.setState({ user: null, userData: null, initialized: true });
   }

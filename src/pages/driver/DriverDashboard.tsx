@@ -14,6 +14,7 @@ export function DriverDashboard() {
   const navigate = useNavigate();
   const [isOnline, setIsOnline] = useState(false);
   const [availableTrips, setAvailableTrips] = useState<any[]>([]);
+
   const [myActiveTrip, setMyActiveTrip] = useState<any>(null);
   const [currentLocation, setCurrentLocation] = useState<[number, number]>(DEFAULT_CENTER);
   const watchIdRef = useRef<number | null>(null);
@@ -24,6 +25,18 @@ export function DriverDashboard() {
     }
   }, [userData, navigate]);
 
+  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c;
+  }
+
   useEffect(() => {
     // If we have an active trip, don't show available
     if (myActiveTrip) return;
@@ -31,15 +44,22 @@ export function DriverDashboard() {
     if (isOnline) {
       const q = query(collection(db, 'trips'), where('status', '==', 'searching_for_driver'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const trips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setAvailableTrips(trips);
+        const trips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as any);
+        
+        // Add distance and filter out trips > 15 km away, then sort
+        const processedTrips = trips.map(trip => {
+          const dist = calculateDistance(currentLocation[0], currentLocation[1], trip.pickupLat, trip.pickupLng);
+          return { ...trip, distanceKm: dist };
+        }).filter(trip => trip.distanceKm < 15).sort((a, b) => a.distanceKm - b.distanceKm);
+        
+        setAvailableTrips(processedTrips);
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'trips'));
       
       return () => unsubscribe();
     } else {
       setAvailableTrips([]);
     }
-  }, [isOnline, myActiveTrip]);
+  }, [isOnline, myActiveTrip, currentLocation]);
 
   const [activeCustomerInfo, setActiveCustomerInfo] = useState<any>(null);
 
@@ -246,16 +266,28 @@ export function DriverDashboard() {
              </div>
              
              {myActiveTrip.status === 'driver_assigned' && (
-               <button onClick={() => updateTripStatus('driver_on_way')} className="w-full bg-accent-yellow hover:bg-[#F2BD23] text-primary-dark font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">التحرك نحو العميل</button>
+                <button onClick={() => updateTripStatus('driver_on_way')} className="w-full bg-accent-yellow hover:bg-[#F2BD23] text-primary-dark font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">التحرك نحو العميل</button>
              )}
              {myActiveTrip.status === 'driver_on_way' && (
-               <button onClick={() => updateTripStatus('driver_arrived')} className="w-full bg-primary-dark hover:bg-black text-white font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">الوصول لموقع العميل</button>
+                <button onClick={() => updateTripStatus('driver_arrived')} className="w-full bg-primary-dark hover:bg-black text-white font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">الوصول لموقع العميل</button>
              )}
              {myActiveTrip.status === 'driver_arrived' && (
-               <button onClick={() => updateTripStatus('trip_started')} className="w-full bg-accent-yellow hover:bg-[#F2BD23] text-primary-dark font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">بدء الرحلة</button>
+                <button onClick={() => updateTripStatus('trip_started')} className="w-full bg-accent-yellow hover:bg-[#F2BD23] text-primary-dark font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">بدء الرحلة</button>
              )}
              {myActiveTrip.status === 'trip_started' && (
-               <button onClick={() => updateTripStatus('completed')} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">إنهاء الرحلة</button>
+                <button onClick={() => updateTripStatus('completed')} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all transform active:scale-95">إنهاء الرحلة</button>
+             )}
+             
+             {['driver_assigned', 'driver_on_way'].includes(myActiveTrip.status) && (
+                <a href={`https://waze.com/ul?ll=${myActiveTrip.pickupLat},${myActiveTrip.pickupLng}&navigate=yes`} target="_blank" rel="noreferrer" className="w-full mt-3 bg-blue-50 text-blue-600 font-bold py-3 rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center">
+                  فتح الموقع عبر Waze (للعميل)
+                </a>
+             )}
+
+             {myActiveTrip.status === 'trip_started' && (
+                <a href={`https://waze.com/ul?ll=${myActiveTrip.destinationLat},${myActiveTrip.destinationLng}&navigate=yes`} target="_blank" rel="noreferrer" className="w-full mt-3 bg-blue-50 text-blue-600 font-bold py-3 rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center">
+                  فتح الموقع عبر Waze (للوجهة)
+                </a>
              )}
              
              {myActiveTrip.status !== 'trip_started' && myActiveTrip.status !== 'completed' && (
@@ -302,7 +334,7 @@ export function DriverDashboard() {
               availableTrips.map(trip => (
                 <div key={trip.id} className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-shadow border-t-4 border-accent-gold p-6 cursor-pointer transform hover:-translate-y-1 duration-200">
                   <div className="flex justify-between items-start mb-6">
-                    <h3 className="font-bold text-primary-dark text-lg">طلب جديد</h3>
+                    <h3 className="font-bold text-primary-dark text-lg">طلب جديد <span className="text-sm font-normal text-gray-500 mr-2">({trip.distanceKm ? `يبعد عنك ~${trip.distanceKm.toFixed(1)} كم` : ''})</span></h3>
                     <span className="font-bold text-accent-gold text-lg bg-accent-yellow/10 px-3 py-1 rounded-full">{trip.estimatedPrice} د.ع</span>
                   </div>
                   <div className="space-y-4 mb-6 relative">
